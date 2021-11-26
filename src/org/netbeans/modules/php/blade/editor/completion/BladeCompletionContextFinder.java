@@ -57,6 +57,7 @@ public class BladeCompletionContextFinder {
         ECHO,
         DIRECTIVE,
         FILTER,
+        PHP,
         NONE,
         ALL;
     }
@@ -91,6 +92,9 @@ public class BladeCompletionContextFinder {
                 break;
             } else if (BladeTokenId.T_BLADE_DIRECTIVE.equals(tokenId)) {
                 result = CompletionContext.DIRECTIVE;
+                break;
+            }  else if (BladeTokenId.T_BLADE_PHP_VAR.equals(tokenId)) {
+                result = CompletionContext.PHP;
                 break;
             }
         } while (tokenSequence.movePrevious());

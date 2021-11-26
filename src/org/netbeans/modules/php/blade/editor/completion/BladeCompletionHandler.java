@@ -123,6 +123,8 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 //                completeTests(completionProposals, request);
 //                completeOperators(completionProposals, request);
 //                break;
+            case PHP:
+                break;
             case ALL:
                 completeAll(completionProposals, request);
                 break;

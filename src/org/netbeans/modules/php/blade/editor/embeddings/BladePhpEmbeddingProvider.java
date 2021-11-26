@@ -49,6 +49,7 @@ import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
+import org.netbeans.api.lexer.TokenId;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.modules.parsing.api.Embedding;
 import org.netbeans.modules.parsing.api.Snapshot;
@@ -57,6 +58,7 @@ import org.netbeans.modules.parsing.spi.SchedulerTask;
 import org.netbeans.modules.parsing.spi.TaskFactory;
 import org.netbeans.modules.php.api.util.FileUtils;
 import static org.netbeans.modules.php.api.util.FileUtils.PHP_MIME_TYPE;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 
 /**
  *
@@ -75,41 +77,39 @@ public class BladePhpEmbeddingProvider extends EmbeddingProvider {
         sequence.moveStart();
         List<Embedding> embeddings = new ArrayList<>();
 
-        int offset = -1;
-        int length = 0;
-        int from = -1;
+        int offset = 0;
         int len = 0;
+        int recover = 0;
+        String fake = "";
         while (sequence.moveNext()) {
             Token t = sequence.token();
+            offset = sequence.offset();
+            TokenId id = t.id();
             len += t.length();
-//            String tText = t.text().toString();
-//            if (t.id() != BladeTopTokenId.T_PHP){
-//                embeddings.add(snapshot.create(tText, PHP_MIME_TYPE));
-//            }
-//            if (t.id() == BladeTopTokenId.T_PHP) {
-//                if (from < 0) {
-//                    from = sequence.offset();
-//                }
-//                len += t.length();
-//                
-//            } else {
-//                if (from >= 0) {
-//                    //lets suppose the text is always html :-(
-//                    embeddings.add(snapshot.create(from, len, PHP_MIME_TYPE));
-//                    //add only one virtual generated token for a sequence of PHP tokens
-//                    //embeddings.add(snapshot.create("@@@", PHP_MIME_TYPE));
-//                }
-//
-//                from = -1;
-//                len = 0;
-//            }
+            String tText = t.text().toString();
+            if (len == 0){
+                continue;
+            }
+            if (id == BladeTopTokenId.T_PHP){
+                embeddings.add(snapshot.create(offset, t.length(), PHP_MIME_TYPE));
+            } else if (id == BladeTopTokenId.T_DIRECTIVE || id == BladeTopTokenId.T_BLADE_PHP) {
+                //we generate a mockup snapshot
+                if (tText.startsWith("@php") && tText.endsWith("@endphp")){
+                    fake = tText.replace("@php", "<?php").replace("@endphp", "?>@@@@");
+                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+                } else if (tText.startsWith("((") && tText.endsWith("}}")) {
+                    //risky
+                    fake = tText.replace("{{", "<?=").replace("}}", "?>");
+                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+                    recover -= 1;
+                } else {
+                    fake = new String(new char[t.length() + recover]).replace("\0", " ");
+                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+                }
+            } else {
+                embeddings.add(snapshot.create(offset, t.length(), PHP_MIME_TYPE));
+            }
         }
-//
-//        if (from >= 0) {
-//            embeddings.add(snapshot.create(from, len, PHP_MIME_TYPE));
-//        }
-        
-        embeddings.add(snapshot.create(0, len, PHP_MIME_TYPE));
 
         if (embeddings.isEmpty()) {
             return Collections.singletonList(snapshot.create("", "text/html"));
