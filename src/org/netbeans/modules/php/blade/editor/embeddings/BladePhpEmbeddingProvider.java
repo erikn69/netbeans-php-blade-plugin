@@ -56,14 +56,14 @@ import org.netbeans.modules.parsing.spi.EmbeddingProvider;
 import org.netbeans.modules.parsing.spi.SchedulerTask;
 import org.netbeans.modules.parsing.spi.TaskFactory;
 import org.netbeans.modules.php.api.util.FileUtils;
+import static org.netbeans.modules.php.api.util.FileUtils.PHP_MIME_TYPE;
 
 /**
  *
  * @author Haidu Bogdan
  */
-@EmbeddingProvider.Registration(mimeType = BladeLanguage.BLADE_MIME_TYPE, targetMimeType="text/html")
-public class BladeEmbeddingProvider extends EmbeddingProvider {
-    public static String TARGET_MIME_TYPE = "text/html";
+@EmbeddingProvider.Registration(mimeType = BladeLanguage.BLADE_MIME_TYPE, targetMimeType=PHP_MIME_TYPE)
+public class BladePhpEmbeddingProvider extends EmbeddingProvider {
     @Override
     public List<Embedding> getEmbeddings(Snapshot snapshot) {
         TokenHierarchy<CharSequence> th = TokenHierarchy.create(snapshot.getText(), BladeTopTokenId.language());
@@ -77,35 +77,39 @@ public class BladeEmbeddingProvider extends EmbeddingProvider {
 
         int offset = -1;
         int length = 0;
-        BladeTopTokenId t_type = BladeTopTokenId.T_HTML ;
+        int from = -1;
+        int len = 0;
         while (sequence.moveNext()) {
-            Token <BladeTopTokenId> t = sequence.token();
-
-            if (t.id() == BladeTopTokenId.T_HTML) {
-                if (offset < 0) {
-                    offset = sequence.offset();
-                }
-                length += t.length();
-            } else if (offset >= 0) {
-                if (t.id() == BladeTopTokenId.T_PHP){
-                    t_type = BladeTopTokenId.T_PHP;
-                    embeddings.add(snapshot.create(offset, length, FileUtils.PHP_MIME_TYPE));
-                } else {
-                    embeddings.add(snapshot.create(offset, length, FileUtils.PHP_MIME_TYPE));
-                }
-                offset = -1;
-                length = 0;
-            }
+            Token t = sequence.token();
+            len += t.length();
+//            String tText = t.text().toString();
+//            if (t.id() != BladeTopTokenId.T_PHP){
+//                embeddings.add(snapshot.create(tText, PHP_MIME_TYPE));
+//            }
+//            if (t.id() == BladeTopTokenId.T_PHP) {
+//                if (from < 0) {
+//                    from = sequence.offset();
+//                }
+//                len += t.length();
+//                
+//            } else {
+//                if (from >= 0) {
+//                    //lets suppose the text is always html :-(
+//                    embeddings.add(snapshot.create(from, len, PHP_MIME_TYPE));
+//                    //add only one virtual generated token for a sequence of PHP tokens
+//                    //embeddings.add(snapshot.create("@@@", PHP_MIME_TYPE));
+//                }
+//
+//                from = -1;
+//                len = 0;
+//            }
         }
-
-        if (offset >= 0) {
-            if (t_type == BladeTopTokenId.T_PHP){
-                embeddings.add(snapshot.create(offset, length, FileUtils.PHP_MIME_TYPE));
-            } else {
-                embeddings.add(snapshot.create(offset, length, FileUtils.PHP_MIME_TYPE));
-            }
-
-        }
+//
+//        if (from >= 0) {
+//            embeddings.add(snapshot.create(from, len, PHP_MIME_TYPE));
+//        }
+        
+        embeddings.add(snapshot.create(0, len, PHP_MIME_TYPE));
 
         if (embeddings.isEmpty()) {
             return Collections.singletonList(snapshot.create("", "text/html"));
@@ -127,7 +131,7 @@ public class BladeEmbeddingProvider extends EmbeddingProvider {
 
         @Override
         public Collection<SchedulerTask> create(final Snapshot snapshot) {
-            return Collections.<SchedulerTask>singletonList(new BladeEmbeddingProvider());
+            return Collections.<SchedulerTask>singletonList(new BladePhpEmbeddingProvider());
         }
     }
 }

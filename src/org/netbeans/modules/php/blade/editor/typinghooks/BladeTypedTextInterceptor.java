@@ -45,7 +45,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.netbeans.modules.php.blade.editor.embeddings.BladeEmbeddingProvider;
+import org.netbeans.modules.php.blade.editor.embeddings.BladePhpEmbeddingProvider;
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.lexer.BladeLexerUtils;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;

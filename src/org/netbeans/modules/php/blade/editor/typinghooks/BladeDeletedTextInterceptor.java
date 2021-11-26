@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import org.netbeans.modules.php.blade.editor.embeddings.BladeEmbeddingProvider;
+import org.netbeans.modules.php.blade.editor.embeddings.BladePhpEmbeddingProvider;
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.lexer.BladeLexerUtils;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
