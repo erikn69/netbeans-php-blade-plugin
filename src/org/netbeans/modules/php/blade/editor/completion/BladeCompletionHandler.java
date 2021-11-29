@@ -70,6 +70,18 @@ import org.netbeans.modules.csl.api.ElementHandle;
 import org.netbeans.modules.csl.api.ParameterInfo;
 import org.netbeans.modules.csl.spi.DefaultCompletionResult;
 import org.netbeans.modules.csl.spi.ParserResult;
+import org.netbeans.modules.php.editor.api.ElementQuery;
+import org.netbeans.modules.php.editor.api.ElementQueryFactory;
+import org.netbeans.modules.php.editor.api.NameKind;
+import org.netbeans.modules.php.editor.api.QuerySupportFactory;
+import org.netbeans.modules.php.editor.api.elements.TypeElement;
+import org.netbeans.modules.parsing.spi.indexing.support.QuerySupport;
+import org.netbeans.modules.php.editor.api.QualifiedName;
+import org.netbeans.modules.php.editor.api.elements.ClassElement;
+import org.netbeans.modules.php.editor.api.elements.FunctionElement;
+import org.netbeans.modules.php.editor.api.elements.NamespaceElement;
+import org.netbeans.modules.php.editor.completion.PHPCodeCompletion;
+import org.openide.filesystems.FileObject;
 
 public class BladeCompletionHandler implements CodeCompletionHandler2 {
     private static URL documentationUrl = null;
@@ -93,6 +105,25 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
     }
     @Override
     public CodeCompletionResult complete(CodeCompletionContext codeCompletionContext) {
+//        if (1 == 1){
+//            PHPCodeCompletion codeCompletion = new PHPCodeCompletion();
+//            return codeCompletion.complete(codeCompletionContext);
+//        }
+        ParserResult info = codeCompletionContext.getParserResult();
+        final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
+        //ElementQuery index = ElementQueryFactory.getIndexQuery(info);
+        ElementQuery.Index indexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(fileObject));
+        final NameKind nameQuery = NameKind.caseInsensitivePrefix("Lmc");
+        Set<ClassElement> classes = indexQuery.getClasses(nameQuery);
+        
+        for (ClassElement clazz : classes) {
+            String test = clazz.getName();
+            String className = clazz.getFilenameUrl();
+        }
+//                        NameKind.caseInsensitivePrefix(QualifiedName.create("$").toNotFullyQualified()));
+        //Set<TypeElement>  cachedElements = indexQuery.getTypes(NameKind.empty());
+        
+        String currentlyEditedFileURL = fileObject.toURL().toString();
         final List<CompletionProposal> completionProposals = new ArrayList<>();
         ParserResult parserResult = codeCompletionContext.getParserResult();
         if (parserResult instanceof BladeParserResult) {

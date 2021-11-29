@@ -119,6 +119,7 @@ public class ToggleBlockCommentAction extends BaseAction {
         action.actionPerformed(evt, target);
     }
 
+    //not working properly for php
     public static enum ToggleCommentType {
         AS_BLADE_EVERYWHERE {
 

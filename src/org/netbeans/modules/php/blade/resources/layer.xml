@@ -23,8 +23,8 @@
                     <attr name="instanceCreate" methodvalue="org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId.language"/>
                     <attr name="instanceOf" stringvalue="org.netbeans.api.lexer.Language"/>
                 </file>
-                <file name="org-modules-php-blade-editor-embedding-BladePhpEmbeddingProvider.instance">
-                    <attr name="instanceOf" stringvalue="org.netbeans.modules.parsing.spi.TaskFactory" />
+                <file name="org-netbeans-modules-php-blade-editor-index-BladeIndexer$Factory.instance">
+                    <attr name="instanceOf" stringvalue="org.netbeans.modules.parsing.spi.indexing.EmbeddingIndexerFactory"/>
                 </file>
                 <folder name="FoldManager">
                     <file name="org-netbeans-modules-csl-editor-fold-GsfFoldManagerFactory.instance"/>

@@ -123,7 +123,7 @@ public enum BladeTopTokenId implements TokenId {
                     switch (id){
                         case T_PHP:
                             //uses the tags
-                            lang = PHPTokenId.language();
+                            lang = PHPTokenId.languageInPHP();
                             join_sections = true;
                             break;
                          case T_HTML:
