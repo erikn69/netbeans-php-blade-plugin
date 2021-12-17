@@ -41,10 +41,13 @@
  */
 package org.netbeans.modules.php.blade.editor.parsing;
 
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Stack;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.event.ChangeListener;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.api.lexer.LanguagePath;
@@ -52,12 +55,21 @@ import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.lib.editor.util.CharSequenceUtilities;
+import org.netbeans.modules.csl.api.OffsetRange;
+import org.netbeans.modules.csl.spi.GsfUtilities;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Task;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.ParserFactory;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
+import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
+import org.netbeans.modules.php.blade.editor.parsing.astnodes.ASTError;
+import org.netbeans.modules.php.blade.editor.parsing.astnodes.BladeProgram;
+import org.netbeans.modules.php.blade.editor.parsing.astnodes.Statement;
+import org.netbeans.modules.php.editor.parser.ParserErrorHandler;
+import org.openide.filesystems.FileObject;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -65,181 +77,241 @@ import org.netbeans.modules.parsing.spi.SourceModificationEvent;
  */
 public class BladeParser extends Parser {
 
+    private static final Logger LOGGER = Logger.getLogger(BladeParser.class.getName());
     Snapshot snapshot;
     BladeParserResult result;
-    
-    final static List<String> parseElements = new ArrayList<String>();
-    static {
-        parseElements.add( "@section" );
-        parseElements.add( "@endsection" );
-        
-        parseElements.add( "@for" );
-        parseElements.add( "@endfor" );
-        
-        parseElements.add( "@foreach" );
-        parseElements.add( "@endforeach" );
-        
-        parseElements.add( "@if" );
-        parseElements.add( "@endif" );
-        
-        parseElements.add( "@php" );
-        parseElements.add( "@endphp" );
-        
-        parseElements.add( "@veratim" );
-        parseElements.add( "@endverbatim" );
-        
-        parseElements.add( "@unless" );
-        parseElements.add( "@endunless" );
-    }
-    
+
     @Override
-    public void parse( Snapshot snapshot, Task task, SourceModificationEvent sme ) throws ParseException {
+    public void parse(Snapshot snapshot, Task task, SourceModificationEvent event) throws ParseException {
         this.snapshot = snapshot;
-        result = new BladeParserResult( snapshot );
-        
-        TokenHierarchy<?> tokenHierarchy = snapshot.getTokenHierarchy();
-        
-        LanguagePath bladePath = null;
-        
-        for ( LanguagePath path : tokenHierarchy.languagePaths() ) {
-            //skip BladeTokenId Mime
-            if ( path.mimePath().endsWith( BladeTokenId.BLADE_MIME_SHORT ) ) { 
-                bladePath = path; break; 
-            }
-            
-        }
-        
-        if ( bladePath != null ) {
-            
-            List<TokenSequence<?>> tokenSequenceList = tokenHierarchy.tokenSequenceList( bladePath, 0, Integer.MAX_VALUE );
-            List<Instruction> instructionList = new ArrayList<>();
-            
-            for ( TokenSequence<?> sequence : tokenSequenceList ) {
-                
-                while ( sequence.moveNext() ) {
-                    
-                    Token<BladeTokenId> token = (Token<BladeTokenId>) sequence.token();
-                    
-                    /* Parse instruction */
-                    BladeTokenId id = token.id();
-                    
-                    if ( id == BladeTokenId.T_BLADE_DIRECTIVE){
-                        CharSequence tokenText = token.text();
-                        String directiveNameString = tokenText.toString().trim().replace(" ", "").replace("\n", "").replace("(", "");
-                        if (parseElements.contains(directiveNameString)){
-                            Instruction instruction = new Instruction();
-                            CharSequence directiveName = directiveNameString.replace("@", "");
-                            instruction.function = directiveName;
-                            instruction.functionTokenIndex = sequence.index();
-                            instruction.functionFrom = token.offset(tokenHierarchy);
-                            instruction.functionLength = token.length();
-                            instructionList.add( instruction );
-                        }
-                        
-                    }
-                }
-                
-            } 
-            
-            /* Analyse instruction structure */
-            
-            Stack<Instruction> instructionStack = new Stack<Instruction>();
-            
-            for ( Instruction instruction : instructionList ) {
-                
-                if ( CharSequenceUtilities.startsWith( instruction.function, "end" ) ) {
-                    
-                    if ( instructionStack.empty() ) { // End tag, but no more tokens on stack!
-                        
-                        result.addError( 
-                            "Unopened '" + instruction.function + "' directive",
-                            instruction.functionFrom,
-                            instruction.functionLength
-                        );
 
-                    } else if ( CharSequenceUtilities.endsWith( instruction.function, instructionStack.peek().function ) ) {
-                        // end[sth] found a [sth] on the stack!
-                        
-                        Instruction start = instructionStack.pop();
-                        result.addDirective( start.function, start.functionFrom, instruction.functionFrom - start.functionFrom + instruction.functionLength, start.extra );
-                        
+        try {
+            int caretOffset = GsfUtilities.getLastKnownCaretOffset(snapshot, event);
+            Context context = new Context(snapshot, caretOffset);
+            BladeErrorHandler errorHandler = new BladeErrorHandler(context);
+            // calling the php ast parser itself
+            ASTBladeScanner scanner = new ASTBladeScanner(new StringReader(context.getSanitizedSource()));
+            ASTBladeParser parser = new ASTBladeParser(scanner);
+
+            final FileObject fileObject = context.getSnapshot().getSource().getFileObject();
+            parser.setErrorHandler(errorHandler);
+            if (fileObject != null) {
+                parser.setFileName(fileObject.getNameExt());
+            }
+
+            java_cup.runtime.Symbol rootSymbol = parser.parse();
+
+            //prevent OOME
+            scanner = null;
+           
+            if (rootSymbol != null) {
+                BladeProgram program;
+                if (rootSymbol.value instanceof BladeProgram) {
+                    program = (BladeProgram) rootSymbol.value; // call the parser itself
+                    List<Statement> statements = program.getStatements();
+                    boolean ok = false;
+                    for (Statement statement : statements) {
+                        ok = true;
+                    }
+                    if (ok) {
+                        LOGGER.log(Level.FINE, "we have statements");
                     } else {
-                        // something wrong lies on the stack!
-                        // assume that current token is invalid and let it stay on the stack
-
-                        result.addError( 
-                            "Unexpected '" + instruction.function + "', expected 'end" + instructionStack.peek().function + "'",
-                            instruction.functionFrom,
-                            instruction.functionLength
-                        );
-                        
+                        LOGGER.log(Level.FINE, "no statements have been found");
                     }
-                    
+                    result = new BladeParserResult(context.getSnapshot(), program);
+                    BladeErrorHandler errh = (BladeErrorHandler) parser.getErrorHandler();
+                    errh.displaySyntaxErrors(program);
                 } else {
-                    instructionStack.push( instruction );
+                    int end = snapshot.getText().toString().length();
+                    List<Statement> statements = new ArrayList<>();
+                    BladeProgram emptyProgram = new BladeProgram(0, end, statements);
+                    result = new BladeParserResult(context.getSnapshot(), emptyProgram);
+                    result.setErrors(errorHandler.displaySyntaxErrors(emptyProgram));
                 }
-                
+            } else {
+                int end = snapshot.getText().toString().length();
+                //BladeErrorHandler errh = (BladeErrorHandler) parser.getErrorHandler();
+                List<Statement> statements = new ArrayList<>();
+                BladeProgram emptyProgram = new BladeProgram(0, end, statements);
+                result.setErrors(errorHandler.displaySyntaxErrors(emptyProgram));
+                LOGGER.log(Level.FINE, "No root has been found");
+                result.setErrors(errorHandler.displayFatalError());
             }
-            
-            // All instructions were parsed. Are there any left on the stack?
-            if ( !instructionStack.empty() ) {
-                // Yep, they were never closed!
-                
-                while ( !instructionStack.empty() ) {
-                    
-                    Instruction instruction = instructionStack.pop();
-                    if (instruction.function.equals("section")){
-                        //section can be defined without endsection
-                        //to do peek element info for extra param
-                        continue;
-                    }
-                    result.addError( 
-                        "Unclosed '@" + instruction.function + "'",
-                        instruction.functionFrom,
-                        instruction.functionLength
-                    );
-                    
-                }
-                
-            }
+
+            LOGGER.log(Level.FINE, "caretOffset: {0}", caretOffset);
+        } catch (Exception exception) {
+            Exceptions.printStackTrace(exception);
+            LOGGER.log(Level.FINE, "Exception during parsing: {0}", exception);
+            //it seems we keep the first error
+//            int end = snapshot.getText().toString().length();
+//            ASTError error = new ASTError(0, end);
+//            List<Statement> statements = new ArrayList<>();
+//            statements.add(error);
+//            BladeProgram emptyProgram = new BladeProgram(0, end, statements);
+//            result = new BladeParserResult(snapshot, emptyProgram);
         }
-        
     }
 
     @Override
     public Result getResult(Task task) throws ParseException {
         return result;
     }
-    
-    @Override
-    public void addChangeListener(ChangeListener cl) {}
 
     @Override
-    public void removeChangeListener(ChangeListener cl) {}
-    
+    public void addChangeListener(ChangeListener cl) {
+    }
+
+    @Override
+    public void removeChangeListener(ChangeListener cl) {
+    }
+
     static public class Factory extends ParserFactory {
 
         @Override
-        public Parser createParser( Collection<Snapshot> clctn ) {
+        public Parser createParser(Collection<Snapshot> clctn) {
             return new BladeParser();
         }
-        
+
     }
-    
-    class Instruction {
-        
-        CharSequence function = null;
-        CharSequence extra = null;
-        int startTokenIndex = 0;
-        int endTokenIndex = 0;
-        int functionTokenIndex = 0;
-        
-        int from = 0;
-        int length = 0;
-        
-        int functionFrom = 0;
-        int functionLength = 0;
-        
+
+    public static class Context {
+
+        private final Snapshot snapshot;
+        private final int caretOffset;
+        private SourceHolder sourceHolder;
+        private SanitizedPart sanitizedPart;
+
+        public Context(Snapshot snapshot, int caretOffset) {
+            this.snapshot = snapshot;
+            this.caretOffset = caretOffset;
+            this.sourceHolder = new SnapshotSourceHolder(snapshot);
+        }
+
+        @Override
+        public String toString() {
+            return "PHPParser.Context(" + snapshot.getSource().getFileObject() + ")"; // NOI18N
+        }
+
+        public Snapshot getSnapshot() {
+            return snapshot;
+        }
+
+        private void setSourceHolder(SourceHolder sourceHolder) {
+            this.sourceHolder = sourceHolder;
+        }
+
+        public String getBaseSource() {
+            return sourceHolder.getText();
+        }
+
+        public int getCaretOffset() {
+            return caretOffset;
+        }
+
+        public void setSanitizedPart(SanitizedPart sanitizedPart) {
+            this.sanitizedPart = sanitizedPart;
+        }
+
+        public SanitizedPart getSanitizedPart() {
+            return sanitizedPart;
+        }
+
+        public String getSanitizedSource() {
+            StringBuilder sb = new StringBuilder();
+            if (sanitizedPart == null) {
+                sb.append(getBaseSource());
+            } else {
+                OffsetRange offsetRange = sanitizedPart.getOffsetRange();
+                sb.append(getBaseSource().substring(0, offsetRange.getStart()))
+                        .append(sanitizedPart.getText())
+                        .append(getBaseSource().substring(offsetRange.getEnd()));
+            }
+            return sb.toString();
+        }
+
     }
-    
+
+    public interface SanitizedPart {
+
+        SanitizedPart NONE = new SanitizedPart() {
+
+            @Override
+            public OffsetRange getOffsetRange() {
+                return OffsetRange.NONE;
+            }
+
+            @Override
+            public String getText() {
+                return "";
+            }
+        };
+
+        OffsetRange getOffsetRange();
+
+        String getText();
+
+    }
+
+    public static class SanitizedPartImpl implements SanitizedPart {
+
+        private final OffsetRange offsetRange;
+        private final String text;
+
+        public SanitizedPartImpl(OffsetRange offsetRange, String text) {
+            assert offsetRange != null;
+            assert text != null;
+            this.offsetRange = offsetRange;
+            this.text = text;
+        }
+
+        @Override
+        public OffsetRange getOffsetRange() {
+            return offsetRange;
+        }
+
+        @Override
+        public String getText() {
+            return text;
+        }
+
+    }
+
+    private interface SourceHolder {
+
+        String getText();
+
+    }
+
+    private static class StringSourceHolder implements SourceHolder {
+
+        private final String text;
+
+        public StringSourceHolder(String text) {
+            assert text != null;
+            this.text = text;
+        }
+
+        @Override
+        public String getText() {
+            return text;
+        }
+
+    }
+
+    private static class SnapshotSourceHolder implements SourceHolder {
+
+        private final Snapshot snapshot;
+
+        public SnapshotSourceHolder(Snapshot snapshot) {
+            assert snapshot != null;
+            this.snapshot = snapshot;
+        }
+
+        @Override
+        public String getText() {
+            return snapshot.getText().toString();
+        }
+
+    }
+
 }

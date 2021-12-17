@@ -49,7 +49,7 @@ import org.netbeans.modules.php.blade.editor.embeddings.BladePhpEmbeddingProvide
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.lexer.BladeLexerUtils;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
-import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.modules.php.blade.editor.ui.options.OptionsUtils;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
@@ -96,11 +96,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         }
         TokenSequence<? extends TokenId> ts = BladeLexerUtils.getBladeMarkupTokenSequence(doc, caretOffset);
         if (ts == null) {
-            // {{}} or {!!!!} there is no text between delimiters
-            ts = BladeLexerUtils.getBladeTokenSequence(document, caretOffset);
-            if (ts == null) {
-                return;
-            }
+            return;
         }
         ts.move(caretOffset);
         if (!ts.moveNext() && !ts.movePrevious()) {
@@ -136,7 +132,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
                     }
                 }
             }
-        } else if(id == BladeTopTokenId.T_HTML) {
+        } else if(id == BladeTokenId.T_HTML) {
             // {{}} or {!!!!}
             if ((isOpeningBracket(ch) || isQuote(ch))
                     && tokenOffset != caretOffset) {
@@ -223,9 +219,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
             case '!':
                 String mimeType = getMimeType();
                 // do nothing in {!! !!} and {{ }}
-                if (mimeType.equals(BladeLanguage.BLADE_MIME_TYPE) // in case of {{^
-                        || mimeType.equals(BladeTokenId.BLADE_MIME_TYPE)
-                       ) {
+                if (mimeType.equals(BladeLanguage.BLADE_MIME_TYPE) ) {
                     return;
                 }
                 TokenSequence<? extends HTMLTokenId> ts = BladeLexerUtils.getHtmlTokenSequence(doc, tokenEndPos);
@@ -345,7 +339,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
     @MimeRegistrations(value = {
         @MimeRegistration(mimeType = "text/html", service = TypedTextInterceptor.Factory.class),
         @MimeRegistration(mimeType = BladeLanguage.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class),
-        @MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class)
+        //@MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class)
     })
     public static class Factory implements TypedTextInterceptor.Factory {
 

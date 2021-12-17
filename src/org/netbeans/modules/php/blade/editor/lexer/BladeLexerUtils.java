@@ -67,15 +67,6 @@ public final class BladeLexerUtils {
     private BladeLexerUtils() {
     }
     
-    public static TokenSequence<? extends BladeTopTokenId> getBladeTokenSequence(final Snapshot snapshot, final int offset) {
-        return getTokenSequence(snapshot.getTokenHierarchy(), offset, BladeTopTokenId.language());
-    }
-
-    public static TokenSequence<? extends BladeTopTokenId> getBladeTokenSequence(final Document document, final int offset) {
-        TokenHierarchy<Document> th = TokenHierarchy.get(document);
-        return getTokenSequence(th, offset, BladeTopTokenId.language());
-    }
-    
     public static TokenSequence<? extends BladeTokenId> getBladeMarkupTokenSequence(final Document document, final int offset) {
         TokenHierarchy<Document> th = TokenHierarchy.get(document);
         return getTokenSequence(th, offset, BladeTokenId.language());
@@ -197,6 +188,7 @@ public final class BladeLexerUtils {
         // check next tokens
         while (ts.moveNext()) {
             TokenId id = ts.token().id();
+            //to check this context situation
 //            if (id == BladeVariableTokenId.T_BLADE_PUNCTUATION || id == BladeTopTokenId.T_BLADE_PUNCTUATION) {
 //                if (BladeLexerUtils.textEquals(ts.token().text(), close)) {
 //                    balance--;

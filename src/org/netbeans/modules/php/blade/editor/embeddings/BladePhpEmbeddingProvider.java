@@ -46,7 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
-import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenId;
@@ -68,8 +68,8 @@ import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 public class BladePhpEmbeddingProvider extends EmbeddingProvider {
     @Override
     public List<Embedding> getEmbeddings(Snapshot snapshot) {
-        TokenHierarchy<CharSequence> th = TokenHierarchy.create(snapshot.getText(), BladeTopTokenId.language());
-        TokenSequence<BladeTopTokenId> sequence = th.tokenSequence(BladeTopTokenId.language());
+        TokenHierarchy<CharSequence> th = TokenHierarchy.create(snapshot.getText(), BladeTokenId.language());
+        TokenSequence<BladeTokenId> sequence = th.tokenSequence(BladeTokenId.language());
         if (sequence == null) {
             return Collections.emptyList();
         }
@@ -79,8 +79,8 @@ public class BladePhpEmbeddingProvider extends EmbeddingProvider {
 
         int offset = 0;
         int len = 0;
-        int recover = 0;
-        String fake = "";
+
+        String fake;
         while (sequence.moveNext()) {
             Token t = sequence.token();
             offset = sequence.offset();
@@ -90,29 +90,30 @@ public class BladePhpEmbeddingProvider extends EmbeddingProvider {
             if (len == 0){
                 continue;
             }
-            if (id == BladeTopTokenId.T_PHP){
-                embeddings.add(snapshot.create(offset, t.length(), PHP_MIME_TYPE));
-            } else if (id == BladeTopTokenId.T_DIRECTIVE || id == BladeTopTokenId.T_BLADE_PHP) {
-                //we generate a mockup snapshot
-                if (tText.startsWith("@php") && tText.endsWith("@endphp")){
-                    fake = tText.replace("@php", "<?php").replace("@endphp", "?>@@@@");
-                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
-                } else if (tText.startsWith("((") && tText.endsWith("}}")) {
-                    //risky
-                    fake = tText.replace("{{", "<?=").replace("}}", "?>");
-                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
-                    recover -= 1;
-                } else {
-                    fake = new String(new char[t.length() + recover]).replace("\0", " ");
-                    embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
-                }
+             if (id == BladeTokenId.T_BLADE_PHP_OPEN) {
+                //fake = new String(new char[tText.length()]).replace("\0", "@");
+                fake = "";
+                embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+            } else if (id == BladeTokenId.T_BLADE_PHP) {
+                //should be escaped on comment state
+                //fake = "<?php" + tText + "?>@@@@";
+                fake = "@@@@" + tText + "@@@@@@@";
+                embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+            } else if (id == BladeTokenId.T_BLADE_ENDPHP) {
+//                fake = new String(new char[tText.length()]).replace("\0", "@");
+                fake = "";
+                embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
+            } else if (id != BladeTokenId.T_HTML) {
+                //in order to enable code completion
+                fake = new String(new char[tText.length()]).replace("\0", " ");
+                embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
             } else {
-                embeddings.add(snapshot.create(offset, t.length(), PHP_MIME_TYPE));
+                embeddings.add(snapshot.create(offset, t.length(), "text/html"));
             }
         }
 
         if (embeddings.isEmpty()) {
-            return Collections.singletonList(snapshot.create("", "text/html"));
+            return Collections.singletonList(snapshot.create("", PHP_MIME_TYPE));
         } else {
             return Collections.singletonList(Embedding.create(embeddings));
         }

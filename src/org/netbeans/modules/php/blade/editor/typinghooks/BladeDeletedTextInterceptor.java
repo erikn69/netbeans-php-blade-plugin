@@ -47,7 +47,7 @@ import org.netbeans.modules.php.blade.editor.embeddings.BladePhpEmbeddingProvide
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.lexer.BladeLexerUtils;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
-import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.modules.php.blade.editor.ui.options.OptionsUtils;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
@@ -149,7 +149,7 @@ public class BladeDeletedTextInterceptor implements DeletedTextInterceptor {
             if (OptionsUtils.autoCompletionEscapedEchoDelimiter()) {
                 int dotPos = context.getOffset();
                 Document document = context.getDocument();
-                TokenSequence<? extends BladeTopTokenId> ts = BladeLexerUtils.getBladeTokenSequence(document, dotPos);
+                TokenSequence<? extends BladeTokenId> ts = BladeLexerUtils.getBladeMarkupTokenSequence(document, dotPos);
                 // now support {{}} and {!!!!}, should also check whitespaces?
                 if (ts != null) {
                     ts.move(dotPos);
@@ -171,21 +171,21 @@ public class BladeDeletedTextInterceptor implements DeletedTextInterceptor {
             return false;
         }
 
-        protected abstract BladeTopTokenId getOpeningId();
+        protected abstract BladeTokenId getOpeningId();
 
-        protected abstract BladeTopTokenId getClosingId();
+        protected abstract BladeTokenId getClosingId();
     }
 
     private static final class BlockDelimiterRemover extends DelimiterRemover {
 
         @Override
-        protected BladeTopTokenId getOpeningId() {
-            return BladeTopTokenId.T_BLADE_VAR;
+        protected BladeTokenId getOpeningId() {
+            return BladeTokenId.T_BLADE_PHP_VAR;
         }
 
         @Override
-        protected BladeTopTokenId getClosingId() {
-            return BladeTopTokenId.T_BLADE_VAR;
+        protected BladeTokenId getClosingId() {
+            return BladeTokenId.T_BLADE_PHP_VAR;
         }
 
     }
@@ -193,13 +193,13 @@ public class BladeDeletedTextInterceptor implements DeletedTextInterceptor {
     private static final class VariableDelimiterRemover extends DelimiterRemover {
 
         @Override
-        protected BladeTopTokenId getOpeningId() {
-            return BladeTopTokenId.T_BLADE_PHP;
+        protected BladeTokenId getOpeningId() {
+            return BladeTokenId.T_BLADE_PHP;
         }
 
         @Override
-        protected BladeTopTokenId getClosingId() {
-            return BladeTopTokenId.T_BLADE_PHP;
+        protected BladeTokenId getClosingId() {
+            return BladeTokenId.T_BLADE_PHP;
         }
 
     }
@@ -318,7 +318,7 @@ public class BladeDeletedTextInterceptor implements DeletedTextInterceptor {
                     ts.move(dotPos);
                     if ((ts.moveNext() || ts.movePrevious())) {
                         TokenId id = ts.token().id();
-                        if (id == BladeTokenId.T_BLADE_ECHO) {
+                        if (id == BladeTokenId.T_BLADE_OPEN_ECHO) {
                             if (TypingHooksUtils.isEscapeSequence(doc, dotPos)) {
                                 doc.remove(dotPos - 1, 1);
                                 return;
@@ -359,7 +359,7 @@ public class BladeDeletedTextInterceptor implements DeletedTextInterceptor {
     @MimeRegistrations(value = {
         @MimeRegistration(mimeType = "text/html", service = DeletedTextInterceptor.Factory.class),
         @MimeRegistration(mimeType = BladeLanguage.BLADE_MIME_TYPE, service = DeletedTextInterceptor.Factory.class),
-        @MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = DeletedTextInterceptor.Factory.class),
+        //@MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = DeletedTextInterceptor.Factory.class),
     })
     public static class Factory implements DeletedTextInterceptor.Factory {
 

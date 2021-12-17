@@ -58,6 +58,7 @@ import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
+import org.netbeans.modules.csl.api.Error;
 
 /**
  *
@@ -66,34 +67,31 @@ import org.netbeans.spi.editor.hints.Severity;
 public class BladeSyntaxValidationTask extends ParserResultTask {
 
     boolean cancelled = false;
-    
+
     @Override
-    public void run( Result r, SchedulerEvent se ) {
-        
-        BladeParserResult result = (BladeParserResult)r;
-        Document document = result.getSnapshot().getSource().getDocument( false );
-        
-        List<ErrorDescription> errors = new ArrayList<ErrorDescription> ();
-        
-        for ( BladeParserResult.Error error : result.getErrors() ) {
-        
+    public void run(Result r, SchedulerEvent se) {
+
+        BladeParserResult result = (BladeParserResult) r;
+        Document document = result.getSnapshot().getSource().getDocument(false);
+
+        List<ErrorDescription> errors = new ArrayList<ErrorDescription>();
+
+        for (Error error : result.getErrors()) {
             try {
+                errors.add(ErrorDescriptionFactory.createErrorDescription(
+                        Severity.ERROR,
+                        "My error",
+                        document,
+                        document.createPosition(error.getStartPosition()),
+                        document.createPosition(error.getEndPosition())
+                ));
 
-                errors.add( ErrorDescriptionFactory.createErrorDescription(
-                    Severity.ERROR, 
-                    error.getDescription(), 
-                    document, 
-                    document.createPosition( error.getOffset() ), 
-                    document.createPosition( error.getOffset() + error.getLength() ) 
-                ) );
+            } catch (BadLocationException ex) {
+            }
 
-            } catch ( BadLocationException ex ) {}
-        
         }
-        
-        HintsController.setErrors( document, "Blade", errors );
-        
-        
+        HintsController.setErrors(document, "Blade", errors);
+
         cancelled = false;
     }
 
@@ -111,14 +109,14 @@ public class BladeSyntaxValidationTask extends ParserResultTask {
     public void cancel() {
         cancelled = true;
     }
-    
+
     static public class Factory extends TaskFactory {
 
         @Override
         public Collection<? extends SchedulerTask> create(Snapshot snpsht) {
-            return Collections.singleton( new BladeSyntaxValidationTask() );
+            return Collections.singleton(new BladeSyntaxValidationTask());
         }
-        
+
     }
-    
+
 }

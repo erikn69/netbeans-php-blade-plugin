@@ -40,17 +40,20 @@
  * Portions Copyrighted 2016 Sun Microsystems, Inc.
  */
 package org.netbeans.modules.php.blade.editor.gsf;
+
 import org.netbeans.modules.php.blade.editor.completion.BladeCompletionHandler;
 import org.netbeans.modules.php.blade.editor.formater.BladeFormatter;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
 import org.netbeans.modules.php.blade.editor.parsing.BladeParser;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.csl.api.CodeCompletionHandler;
+import org.netbeans.modules.csl.api.DeclarationFinder;
 import org.netbeans.modules.csl.api.Formatter;
 import org.netbeans.modules.csl.api.StructureScanner;
 import org.netbeans.modules.csl.spi.DefaultLanguageConfig;
 import org.netbeans.modules.csl.spi.LanguageRegistration;
 import org.netbeans.modules.parsing.spi.Parser;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 
 /**
  *
@@ -58,42 +61,56 @@ import org.netbeans.modules.parsing.spi.Parser;
  */
 @LanguageRegistration(mimeType = "text/x-blade", useCustomEditorKit = true)
 public class BladeLanguage extends DefaultLanguageConfig {
-    public BladeLanguage() {}
+
+    public BladeLanguage() {
+    }
     public static final String BLADE_MIME_TYPE = "text/x-blade";
-    
+
     @Override
-    public Language <BladeTopTokenId> getLexerLanguage() {
-        return BladeTopTokenId.language();
+    public Language<BladeTokenId> getLexerLanguage() {
+        return BladeTokenId.language();
     }
 
     @Override
     public String getDisplayName() {
         return "Blade";
     }
-    
-    @Override
-    public boolean isUsingCustomEditorKit() { return true; }
-    
-    @Override
-    public boolean isIdentifierChar(char c) { return Character.isLetter(c); }
-    
-    @Override
-    public Parser getParser() { return new BladeParser(); }
-    
-    @Override
-    public boolean hasStructureScanner() { return true; }
 
     @Override
-    public StructureScanner getStructureScanner() { return new BladeStructureScanner(); }
-    
+    public boolean isUsingCustomEditorKit() {
+        return true;
+    }
+
     @Override
-    public boolean hasHintsProvider() { return false; }
-    
+    public boolean isIdentifierChar(char c) {
+        return Character.isLetter(c);
+    }
+
+    @Override
+    public Parser getParser() {
+        return new BladeParser();
+    }
+
+    @Override
+    public boolean hasStructureScanner() {
+        return true;
+    }
+
+    @Override
+    public StructureScanner getStructureScanner() {
+        return new BladeStructureScanner();
+    }
+
+    @Override
+    public boolean hasHintsProvider() {
+        return false;
+    }
+
     @Override
     public CodeCompletionHandler getCompletionHandler() {
         return new BladeCompletionHandler();
     }
-    
+
     @Override
     public boolean hasFormatter() {
         return true;
@@ -104,4 +121,8 @@ public class BladeLanguage extends DefaultLanguageConfig {
         return new BladeFormatter();
     }
 
+    @Override
+    public DeclarationFinder getDeclarationFinder() {
+        return new BladeDeclarationFinder();
+    }
 }

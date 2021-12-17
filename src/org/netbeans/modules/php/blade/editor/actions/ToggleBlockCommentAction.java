@@ -58,7 +58,7 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.csl.api.CslActions;
 
 import org.netbeans.modules.php.blade.editor.lexer.BladeTopLexer;
-import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
+import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.modules.php.blade.editor.ui.options.BladeOptions;
 
 /**
@@ -125,8 +125,8 @@ public class ToggleBlockCommentAction extends BaseAction {
 
             @Override
             void comment(BaseDocument baseDocument, Positions positions, AtomicBoolean processedHere) throws BadLocationException {
-                TokenSequence<? extends BladeTopTokenId> ts = BladeLexerUtils.getBladeTokenSequence(baseDocument, positions.getStart());
-                Token<? extends BladeTopTokenId> token = null;
+                TokenSequence<? extends BladeTokenId> ts = BladeLexerUtils.getBladeMarkupTokenSequence(baseDocument, positions.getStart());
+                Token<? extends BladeTokenId> token = null;
                 if (ts != null) {
                     ts.move(positions.getStart());
                     ts.moveNext();
@@ -148,19 +148,19 @@ public class ToggleBlockCommentAction extends BaseAction {
 
             @Override
             void comment(BaseDocument baseDocument, Positions positions, AtomicBoolean processedHere) throws BadLocationException {
-                TokenSequence<? extends BladeTopTokenId> ts = BladeLexerUtils.getBladeTokenSequence(baseDocument, positions.getStart());
+                TokenSequence<? extends BladeTokenId> ts = BladeLexerUtils.getBladeMarkupTokenSequence(baseDocument, positions.getStart());
                 if (ts == null) {
                     processedHere.set(false);
                     return;
                 }
                 ts.move(positions.getStart());
                 ts.moveNext();
-                Token<? extends BladeTopTokenId> token = ts.token();
-                if (token != null && positions.getStart() == ts.offset() && token.id() == BladeTopTokenId.T_HTML) {
+                Token<? extends BladeTokenId> token = ts.token();
+                if (token != null && positions.getStart() == ts.offset() && token.id() == BladeTokenId.T_HTML) {
                     ts.movePrevious();
                     token = ts.token();
                 }
-                if (token != null && token.id() == BladeTopTokenId.T_HTML) {
+                if (token != null && token.id() == BladeTokenId.T_HTML) {
                     processedHere.set(false);
                     return;
                 } else if (token != null && isInComment(token.id())) {
@@ -172,15 +172,15 @@ public class ToggleBlockCommentAction extends BaseAction {
 
         abstract void comment(BaseDocument baseDocument, Positions positions, AtomicBoolean processedHere) throws BadLocationException;
 
-        protected void uncommentToken(TokenSequence<? extends BladeTopTokenId> ts, BaseDocument baseDocument) throws BadLocationException {
+        protected void uncommentToken(TokenSequence<? extends BladeTokenId> ts, BaseDocument baseDocument) throws BadLocationException {
             int start = ts.offset();
             int end = ts.offset() + ts.token().text().length() - BladeTopLexer.OPEN_COMMENT.length() - BladeTopLexer.CLOSE_COMMENT.length();
             baseDocument.remove(start, BladeTopLexer.OPEN_COMMENT.length());
             baseDocument.remove(end, BladeTopLexer.CLOSE_COMMENT.length());
         }
 
-        private static boolean isInComment(BladeTopTokenId tokenId) {
-            return tokenId == BladeTopTokenId.T_BLADE_COMMENT;
+        private static boolean isInComment(BladeTokenId tokenId) {
+            return tokenId == BladeTokenId.T_BLADE_COMMENT;
         }
     }
 

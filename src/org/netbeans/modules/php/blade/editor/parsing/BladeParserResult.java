@@ -41,12 +41,13 @@
  */
 package org.netbeans.modules.php.blade.editor.parsing;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import org.netbeans.modules.csl.api.Severity;
 import org.netbeans.modules.csl.spi.ParserResult;
 import org.netbeans.modules.parsing.api.Snapshot;
-import org.openide.filesystems.FileObject;
+import org.netbeans.modules.php.blade.editor.parsing.astnodes.BladeProgram;
+import org.netbeans.modules.csl.api.Error;
+
 /**
  *
  * @author Haidu Bogdan
@@ -54,138 +55,51 @@ import org.openide.filesystems.FileObject;
 public class BladeParserResult extends ParserResult {
 
     boolean valid = true;
-    
-    List<Error> errorList = new ArrayList<Error>();
-    List<Directive> directiveList = new ArrayList<Directive>();
-    
-    BladeParserResult( Snapshot snapshot ) {
-        super( snapshot );
+    //private Model model;
+    private final BladeProgram root;
+    private List<Error> errors;
+
+    BladeParserResult(Snapshot snapshot) {
+        super(snapshot);
+        this.root = null;
     }
-    
-    public List<Error> getErrors() { return errorList; }
-    
-    public void addError( String description, int offset, int length ) { 
-        errorList.add( new Error( description, offset, length, getSnapshot() ) ); 
+
+    public BladeParserResult(Snapshot snapshot, BladeProgram rootNode) {
+        super(snapshot);
+        this.root = rootNode;
+        this.errors = Collections.<Error>emptyList();
     }
-    
-    public List<Directive> getDirectives() { return directiveList; }
-    
-    public void addDirective( CharSequence function, int offset, int length, CharSequence extra ) { 
-        directiveList.add( new Directive( function, offset, length, extra ) ); 
+
+    public BladeProgram getProgram() {
+        return root;
     }
-    
+
+    public List<Error> getErrors() {
+        return errors;
+    }
+
+    public void setErrors(List<Error> errors) {
+        this.errors = errors;
+    }
+
     @Override
     protected void invalidate() {
         valid = false;
     }
-    
+
     public boolean isValid() {
         return valid;
     }
 
     @Override
     public List<? extends org.netbeans.modules.csl.api.Error> getDiagnostics() {
-        return errorList;
+        return errors;
     }
-    
-    public class Error implements org.netbeans.modules.csl.api.Error {
-        
-        String description;
-        int offset;
-        int length;
-        Snapshot snapshot;
-        
-        public Error( String description, int offset, int length, Snapshot snapshot ) {
-            this.description = description;
-            this.offset = offset;
-            this.length = length;
-            this.snapshot = snapshot;
-        }
-        
-        @Override
-        public String getDescription() {
-            return description;
-        }
-        
-        public int getOffset() {
-            return offset;
-        }
-        
-        public int getLength() {
-            return length;
-        }
 
-        @Override
-        public String getDisplayName() {
-            return description;
-        }
-
-        @Override
-        public String getKey() {
-            return description;
-        }
-
-        @Override
-        public FileObject getFile() {
-            return snapshot.getSource().getFileObject();
-        }
-
-        @Override
-        public int getStartPosition() {
-            return offset;
-        }
-
-        @Override
-        public int getEndPosition() {
-            return offset + length;
-        }
-
-        @Override
-        public boolean isLineError() {
-            return false;
-        }
-
-        @Override
-        public Severity getSeverity() {
-            return Severity.ERROR;
-        }
-
-        @Override
-        public Object[] getParameters() {
-            return null;
-        }
-        
-    }
-    
-    
-    public class Directive {
-        
-        CharSequence function;
-        int offset;
-        int length;
-        CharSequence extra;
-        
-        public Directive( CharSequence function, int offset, int length, CharSequence extra ) {
-            this.function = function;
-            this.offset = offset;
-            this.length = length;
-            this.extra = extra;
-        }
-        
-        public CharSequence getExtra() { return extra; }
-        
-        public CharSequence getDescription() {
-            return function;
-        }
-        
-        public int getOffset() {
-            return offset;
-        }
-        
-        public int getLength() {
-            return length;
-        }
-        
-    }
-    
+//    public synchronized Model getModel() {
+//        if (model == null) {
+//            model = ModelFactory.getModel(this);
+//        }
+//        return model;
+//    }
 }

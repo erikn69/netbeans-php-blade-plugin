@@ -41,27 +41,32 @@
  */
 package org.netbeans.modules.php.blade.editor.completion;
 
+import java.util.LinkedList;
+import java.util.List;
 import org.netbeans.modules.php.blade.editor.lexer.BladeLexerUtils;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
 import org.netbeans.modules.php.blade.editor.parsing.BladeParserResult;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.api.lexer.TokenSequence;
+import org.netbeans.api.lexer.TokenUtilities;
 
 /**
  *
  * @author Haidu Bogdan
  */
 public class BladeCompletionContextFinder {
+
     public static enum CompletionContext {
         ECHO,
         DIRECTIVE,
+        EXTENDS,
         FILTER,
         PHP,
         NONE,
         ALL;
     }
-    
+
     public static CompletionContext find(final BladeParserResult parserResult, final int offset) {
         assert parserResult != null;
         CompletionContext result = CompletionContext.NONE;
@@ -75,7 +80,7 @@ public class BladeCompletionContextFinder {
         }
         return result;
     }
-    
+
     private static CompletionContext findContext(TokenSequence<? extends TokenId> tokenSequence) {
         CompletionContext result = CompletionContext.ALL;
         do {
@@ -84,20 +89,58 @@ public class BladeCompletionContextFinder {
                 break;
             }
             TokenId tokenId = token.id();
-            if (BladeTokenId.T_BLADE_OTHER.equals(tokenId)) {
+            if (BladeTokenId.BLADE_PHP_TOKEN.equals(tokenId)) {
+                List<? extends Token<? extends TokenId>> preceedingLineTokens = getPreceedingLineTokens(token, tokenSequence.offset(), tokenSequence);
+                for (Token<? extends TokenId> t : preceedingLineTokens) {
+                    if (BladeTokenId.T_BLADE_DIRECTIVE.equals(t.id())){
+                        result = CompletionContext.EXTENDS;
+                        break;
+                    }
+                }
+                break;
+            } else if (BladeTokenId.T_BLADE_OTHER.equals(tokenId)) {
                 result = CompletionContext.NONE;
                 break;
-            } else if (BladeTokenId.T_BLADE_ECHO.equals(tokenId)) {
+            } else if (BladeTokenId.T_BLADE_OPEN_ECHO.equals(tokenId)) {
                 result = CompletionContext.ECHO;
                 break;
             } else if (BladeTokenId.T_BLADE_DIRECTIVE.equals(tokenId)) {
                 result = CompletionContext.DIRECTIVE;
                 break;
-            }  else if (BladeTokenId.T_BLADE_PHP_VAR.equals(tokenId)) {
+            } else if (BladeTokenId.T_BLADE_PHP_VAR.equals(tokenId)) {
                 result = CompletionContext.PHP;
                 break;
             }
         } while (tokenSequence.movePrevious());
         return result;
     }
+
+    private static List<? extends Token<? extends TokenId>> getPreceedingLineTokens(Token<? extends TokenId> token, int tokenOffset, TokenSequence<? extends TokenId> tokenSequence) {
+        int orgOffset = tokenSequence.offset();
+        LinkedList<Token<? extends TokenId>> tokens = new LinkedList<>();
+        if (token.id() != BladeTokenId.WHITESPACE
+                || TokenUtilities.indexOf(token.text().subSequence(0, Math.min(token.text().length(), tokenOffset)), '\n') == -1) { // NOI18N
+            while (true) {
+                if (!tokenSequence.movePrevious()) {
+                    break;
+                }
+                Token<? extends TokenId> cToken = tokenSequence.token();
+                if (cToken.id() == BladeTokenId.WHITESPACE
+                        && TokenUtilities.indexOf(cToken.text(), '\n') != -1) { // NOI18N
+                    break;
+                }
+                tokens.addLast(cToken);
+            }
+        }
+
+        tokenSequence.move(orgOffset);
+        tokenSequence.moveNext();
+
+        return tokens;
+    }
+    
+    static enum KeywordCompletionType {
+        SIMPLE, WITH_ARG, WITH_ARG_AND_ENDTAG, WITH_ENDTAG
+    };
+
 }

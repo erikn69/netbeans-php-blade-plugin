@@ -44,22 +44,27 @@ package org.netbeans.modules.php.blade.editor.completion;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import org.netbeans.api.editor.document.LineDocumentUtils;
+import org.netbeans.api.html.lexer.HTMLTokenId;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.api.lexer.TokenSequence;
-import org.netbeans.modules.php.blade.editor.completion.BladeCompletionProposal.CompletionRequest;
-import org.netbeans.modules.php.blade.editor.completion.BladeDocumentationFactory.DirectiveDocumentationFactory;
+import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.php.blade.editor.lexer.BladeTokenId;
-import org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId;
 import org.netbeans.modules.php.blade.editor.parsing.BladeParserResult;
 import org.netbeans.modules.csl.api.CodeCompletionContext;
 import org.netbeans.modules.csl.api.CodeCompletionHandler2;
@@ -70,90 +75,135 @@ import org.netbeans.modules.csl.api.ElementHandle;
 import org.netbeans.modules.csl.api.ParameterInfo;
 import org.netbeans.modules.csl.spi.DefaultCompletionResult;
 import org.netbeans.modules.csl.spi.ParserResult;
-import org.netbeans.modules.php.editor.api.ElementQuery;
-import org.netbeans.modules.php.editor.api.ElementQueryFactory;
-import org.netbeans.modules.php.editor.api.NameKind;
-import org.netbeans.modules.php.editor.api.QuerySupportFactory;
-import org.netbeans.modules.php.editor.api.elements.TypeElement;
-import org.netbeans.modules.parsing.spi.indexing.support.QuerySupport;
-import org.netbeans.modules.php.editor.api.QualifiedName;
-import org.netbeans.modules.php.editor.api.elements.ClassElement;
-import org.netbeans.modules.php.editor.api.elements.FunctionElement;
-import org.netbeans.modules.php.editor.api.elements.NamespaceElement;
-import org.netbeans.modules.php.editor.completion.PHPCodeCompletion;
+import org.netbeans.modules.php.blade.editor.BladeProjectSupport;
+import org.netbeans.modules.php.blade.editor.completion.BladeCompletionContextFinder.KeywordCompletionType;
+import org.netbeans.modules.php.blade.editor.completion.BladeCompletionItem.CompletionRequest;
 import org.openide.filesystems.FileObject;
+import org.openide.util.NbBundle;
 
 public class BladeCompletionHandler implements CodeCompletionHandler2 {
+
     private static URL documentationUrl = null;
-        static {
-            try {
-                documentationUrl = new URL("https://laravel.com/docs/8.x/blade"); //NOI18N
-            } catch (MalformedURLException ex) {
-                //LOGGER.log(Level.FINE, null, ex);
-            }
-    }
-        
-    private static final Set<BladeElement> DIRECTIVES = new HashSet<>();   
+
     static {
-        BladeDocumentationFactory documentationFactory = DirectiveDocumentationFactory.getInstance();
-        DIRECTIVES.add(BladeElement.Factory.create("for", documentationFactory, "for(${$i}; ${$i} < 10; ${$i}++)\n\n@endfor")); //NOI18N
-        DIRECTIVES.add(BladeElement.Factory.create("foreach", documentationFactory, "foreach(${$array} as ${$item})\n\n@endforeach")); //NOI18N
-        DIRECTIVES.add(BladeElement.Factory.create("if", documentationFactory, "if(${$test})\n\n@endif")); //NOI18N
-        DIRECTIVES.add(BladeElement.Factory.create("extends", documentationFactory, "extends('${template}')")); //NOI18N
-        DIRECTIVES.add(BladeElement.Factory.create("section", documentationFactory, "section('${content}')\n\n@endsection")); //NOI18N
-        DIRECTIVES.add(BladeElement.Factory.create("section_inline", documentationFactory, "section('${content}', '${value}')")); //NOI18N
+        try {
+            documentationUrl = new URL("https://laravel.com/docs/8.x/blade"); //NOI18N
+        } catch (MalformedURLException ex) {
+            //LOGGER.log(Level.FINE, null, ex);
+        }
     }
+
+    static final Map<String, KeywordCompletionType> BLADE_KEYWORDS = new HashMap<>();
+
+    static {
+        BLADE_KEYWORDS.put("@continue", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_KEYWORDS.put("@endfor", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_KEYWORDS.put("@endif", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_KEYWORDS.put("@endforeach", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_KEYWORDS.put("@endsection", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+    }
+
+    static final Map<String, KeywordCompletionType> BLADE_DIRECTIVES = new HashMap<>();
+
+    static {
+        BLADE_DIRECTIVES.put("@yield", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_DIRECTIVES.put("@extends", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_DIRECTIVES.put("@if", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_DIRECTIVES.put("@for", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_DIRECTIVES.put("@foreach", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_DIRECTIVES.put("@section", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_DIRECTIVES.put("@php", KeywordCompletionType.WITH_ENDTAG);
+        //BLADE_DIRECTIVES.put("@continue", KeywordCompletionType.SIMPLE);
+    }
+
+    private static final String[] PHP_LANGUAGE_CONSTRUCTS_WITH_PARENTHESES = {
+        "@if", "@extends" // NOI18N
+    };
+
+    private static final Collection<Character> AUTOPOPUP_STOP_CHARS = new TreeSet<>(
+            Arrays.asList('=', ';', '+', '-', '*', '/',
+                    '%', '(', ')', '[', ']', '{', '}', '?'));
+
     @Override
     public CodeCompletionResult complete(CodeCompletionContext codeCompletionContext) {
-//        if (1 == 1){
-//            PHPCodeCompletion codeCompletion = new PHPCodeCompletion();
-//            return codeCompletion.complete(codeCompletionContext);
-//        }
+        //final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
+/*
         ParserResult info = codeCompletionContext.getParserResult();
         final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
+        BladeProjectSupport sup = BladeProjectSupport.findFor(fileObject);
+        if (sup != null) {
+            BladeIndex index = sup.getIndex();
+            DependenciesGraph deps = index.getDependencies(fileObject);
+            Collection<FileObject> refered = deps.getAllReferedFiles();
+            //get map of all fileobject declaring classes with the prefix
+            Map<FileObject, Collection<String>> search = index.findAllExtendsDeclarations(); //cut off the dot (.)
+            for (FileObject fo : search.keySet()) {
+                //allids.addAll(search.get(fo));
+                //is the file refered by the current file?
+                if (refered.contains(fo)) {
+                    //yes - add its classes
+                    //refids.addAll(search.get(fo));
+                }
+            }
+        }
+        //check index flow
+
         //ElementQuery index = ElementQueryFactory.getIndexQuery(info);
         ElementQuery.Index indexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(fileObject));
         final NameKind nameQuery = NameKind.caseInsensitivePrefix("Lmc");
         Set<ClassElement> classes = indexQuery.getClasses(nameQuery);
-        
+
         for (ClassElement clazz : classes) {
             String test = clazz.getName();
             String className = clazz.getFilenameUrl();
-        }
+        } 
+         */
+
 //                        NameKind.caseInsensitivePrefix(QualifiedName.create("$").toNotFullyQualified()));
         //Set<TypeElement>  cachedElements = indexQuery.getTypes(NameKind.empty());
-        
-        String currentlyEditedFileURL = fileObject.toURL().toString();
+        //String currentlyEditedFileURL = fileObject.toURL().toString();
         final List<CompletionProposal> completionProposals = new ArrayList<>();
         ParserResult parserResult = codeCompletionContext.getParserResult();
-        if (parserResult instanceof BladeParserResult) {
-            BladeParserResult bladeParserResult = (BladeParserResult) parserResult;
-            CompletionRequest request = new CompletionRequest();
-            request.prefix = codeCompletionContext.getPrefix();
-            int caretOffset = codeCompletionContext.getCaretOffset();
-            String properPrefix = getPrefix(bladeParserResult, caretOffset, true);
-            request.anchorOffset = caretOffset - (properPrefix == null ? 0 : properPrefix.length());
-            request.parserResult = bladeParserResult;
-            request.context = BladeCompletionContextFinder.find(request.parserResult, caretOffset);
-            doCompletion(completionProposals, request);
+
+        if (!(parserResult instanceof BladeParserResult)) {
+            return CodeCompletionResult.NONE;
         }
+
+        BladeParserResult bladeParserResult = (BladeParserResult) parserResult;
+        if (bladeParserResult.getProgram() == null) {
+            return CodeCompletionResult.NONE;
+        }
+
+        final FileObject fileObject = bladeParserResult.getSnapshot().getSource().getFileObject();
+        if (fileObject == null) {
+            return CodeCompletionResult.NONE;
+        }
+
+        CompletionRequest request = new CompletionRequest();
+        request.prefix = codeCompletionContext.getPrefix();
+        int caretOffset = codeCompletionContext.getCaretOffset();
+        String properPrefix = getPrefix(bladeParserResult, caretOffset, true);
+        if (request.prefix.length() == 0) {
+            request.prefix = properPrefix;
+        }
+        request.anchorOffset = caretOffset - (properPrefix == null ? 0 : properPrefix.length());
+        request.parserResult = bladeParserResult;
+
+        request.context = BladeCompletionContextFinder.find(request.parserResult, caretOffset);
+        BladeProjectSupport sup = BladeProjectSupport.findFor(fileObject);
+        if (sup != null) {
+            request.index = sup.getIndex();
+        }
+        doCompletion(completionProposals, request);
         return new DefaultCompletionResult(completionProposals, false);
     }
 
     private void doCompletion(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
         switch (request.context) {
-//            case FILTER:
-//                completeFilters(completionProposals, request);
-//                break;
-//            case BLOCK:
-//                completeAll(completionProposals, request);
-//                break;
-//            case VARIABLE:
-//                completeFilters(completionProposals, request);
-//                completeFunctions(completionProposals, request);
-//                completeTests(completionProposals, request);
-//                completeOperators(completionProposals, request);
-//                break;
+            case EXTENDS:
+                completeBladeViews(completionProposals, request);
+                //  completeAll(completionProposals, request);
+                break;
             case PHP:
                 break;
             case ALL:
@@ -165,23 +215,66 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
                 completeAll(completionProposals, request);
         }
     }
-    
+
     private void completeAll(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
         completeDirectives(completionProposals, request);
+        completeBladeViews(completionProposals, request);
     }
-    
+
+    private void completeBladeViews(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
+        if (request.index == null) {
+            return;
+        }
+        Map<FileObject, Collection<String>> search = request.index.findAllExtendsDeclarations();
+        for (Map.Entry<FileObject, Collection<String>> entry : search.entrySet()) {
+            // Collection<?> value = search.get(fo).value;
+            Collection<?> values = entry.getValue();
+            for (Object value : values) {
+                if (value == null) {
+                    continue;
+                }
+                BladeElement element = new BladeElement(value.toString());
+                completionProposals.add(new BladeCompletionItem(element, request));
+            }
+        }
+
+        /* 
+        //file blade tests
+        
+        Map<FileObject, Collection<String>> views = request.index.findAllBladeViewPaths();
+        for (Map.Entry<FileObject, Collection<String>> view : views.entrySet()) {
+            Collection<?> values = view.getValue();
+            for (Object value : values) {
+                if (value == null) {
+                    continue;
+                }
+                BladeElement element = new BladeElement(value.toString());
+                completionProposals.add(new BladeCompletionItem(element, request));
+            }
+        }
+         */
+    }
+
     private void completeDirectives(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
-        for (BladeElement directive : DIRECTIVES) {
-            if (startsWith(directive.getName(), request.prefix)) {
-                completionProposals.add(new BladeCompletionProposal.DirectiveCompletionProposal(directive, request));
+        List<String> defaultDirectives = new ArrayList<>(BLADE_DIRECTIVES.keySet());
+        for (String directive : defaultDirectives) {
+            if (startsWith(directive, request.prefix)) {
+                DirectiveElement element = new DirectiveElement(directive);
+                completionProposals.add(new BladeCompletionItem.DirectiveItem(element, request));
+            }
+        }
+        List<String> defaultKeywords = new ArrayList<>(BLADE_KEYWORDS.keySet());
+        for (String keyword : defaultKeywords) {
+            if (startsWith(keyword, request.prefix)) {
+                completionProposals.add(new BladeCompletionItem.KeywordItem(keyword, request));
             }
         }
     }
-    
+
     private static boolean startsWith(String theString, String prefix) {
         return prefix.length() == 0 ? true : theString.toLowerCase().startsWith(prefix.toLowerCase());
     }
-    
+
     @Override
     public String document(ParserResult pr, ElementHandle eh) {
         return "";
@@ -198,7 +291,7 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
     }
 
     @Override
-    public QueryType getAutoQuery( JTextComponent jtc, String string ) {
+    public QueryType getAutoQuery(JTextComponent jtc, String string) {
         return QueryType.ALL_COMPLETION;
     }
 
@@ -214,22 +307,29 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 
     @Override
     public ParameterInfo parameters(ParserResult pr, int i, CompletionProposal cp) {
-        return new ParameterInfo( new ArrayList<String>(), 0, 0 );
+        return new ParameterInfo(new ArrayList<String>(), 0, 0);
     }
-    
+
     @Override
     public Documentation documentElement(ParserResult parserResult, ElementHandle elementHandle, Callable<Boolean> cancel) {
         Documentation result = null;
-        if (elementHandle instanceof BladeElement) {
-            result = Documentation.create(((BladeElement) elementHandle).getDocumentation().asText(), documentationUrl);
+        if (elementHandle instanceof DirectiveElement) {
+            //correspondence with Bundle.properties must be 1 to 1
+            result = Documentation.create(NbBundle.getMessage(BladeCompletionHandler.class, "TAG_" + elementHandle.getName()));
+        } else if (elementHandle instanceof BladeElement) {
+            //we can add the filename
+            String tooltip = elementHandle.getName();
+            result = Documentation.create(String.format("<div align=\"right\"><font size=-1>%s</font></div>", tooltip));
         }
         return result;
     }
-    
+
     private static final class PrefixResolver {
+
         private final ParserResult info;
         private final int offset;
         private final boolean upToOffset;
+        private BaseDocument doc;
         private String result = "";
 
         static PrefixResolver create(ParserResult info, int offset, boolean upToOffset) {
@@ -240,24 +340,59 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
             this.info = info;
             this.offset = offset;
             this.upToOffset = upToOffset;
+            this.doc = (BaseDocument) info.getSnapshot().getSource().getDocument(false);
+
         }
 
         String resolve() {
-            TokenHierarchy<?> th = info.getSnapshot().getTokenHierarchy();
-            if (th != null) {
-                processHierarchy(th);
+            if (doc != null) {
+                int lineBegin = LineDocumentUtils.getLineStart(doc, offset);
+                try {
+                    int lineEnd = LineDocumentUtils.getLineEnd(doc, offset);
+                    if (lineBegin != -1 && lineEnd > 0) {
+                        String line = doc.getText(lineBegin, lineEnd - lineBegin);
+                        int lineOffset = offset - lineBegin;
+                        int start = 0;
+                        String prefix;
+                        prefix = line.substring(start, lineOffset);
+                        int lastIndexOfAt = prefix.lastIndexOf('@'); //NOI18N
+
+                        if (lastIndexOfAt >= 0) {
+                            prefix = prefix.substring(lastIndexOfAt);
+                        } else {
+                            prefix = line.substring(start);
+                        }
+                        result = prefix;
+                    }
+                } catch (BadLocationException ble) {
+                    //Exceptions.printStackTrace(ble);
+                }
             }
+
             return result;
         }
 
         private void processHierarchy(TokenHierarchy<?> th) {
-            TokenSequence<BladeTopTokenId> tts = th.tokenSequence(BladeTopTokenId.language());
+            TokenSequence<BladeTokenId> tts = th.tokenSequence(BladeTokenId.language());
             if (tts != null) {
                 processTopSequence(tts);
             }
+            TokenSequence<HTMLTokenId> thtml = th.tokenSequence(HTMLTokenId.language());
+            if (thtml != null) {
+                processTopHtmlSequence(thtml);
+            }
         }
 
-        private void processTopSequence(TokenSequence<BladeTopTokenId> tts) {
+        private void processTopHtmlSequence(TokenSequence<HTMLTokenId> tts) {
+            tts.move(offset);
+            if (tts.moveNext() || tts.movePrevious()) {
+                TokenSequence<? extends TokenId> ts = tts.embedded(HTMLTokenId.language());
+
+                processSequence(ts);
+            }
+        }
+
+        private void processTopSequence(TokenSequence<BladeTokenId> tts) {
             tts.move(offset);
             if (tts.moveNext() || tts.movePrevious()) {
                 TokenSequence<? extends TokenId> ts = tts.embedded(BladeTokenId.language());
@@ -304,9 +439,9 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
         }
 
         private static boolean isValidTokenId(TokenId id) {
-            return BladeTopTokenId.T_DIRECTIVE.equals(id);
+            return BladeTokenId.T_BLADE_DIRECTIVE.equals(id) || BladeTokenId.BLADE_PHP_TOKEN.equals(id);
         }
 
     }
-    
+
 }

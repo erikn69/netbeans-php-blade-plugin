@@ -20,7 +20,7 @@
                     <attr name="beaninfo" boolvalue="false"/>
                 </file>
                 <file name="language.instance">
-                    <attr name="instanceCreate" methodvalue="org.netbeans.modules.php.blade.editor.lexer.BladeTopTokenId.language"/>
+                    <attr name="instanceCreate" methodvalue="org.netbeans.modules.php.blade.editor.lexer.BladeTokenId.language"/>
                     <attr name="instanceOf" stringvalue="org.netbeans.api.lexer.Language"/>
                 </file>
                 <file name="org-netbeans-modules-php-blade-editor-index-BladeIndexer$Factory.instance">
@@ -105,17 +105,6 @@
                 <file name="org-netbeans-modules-csl-editor-semantic-HighlightsLayerFactoryImpl.instance"/>
                 <folder name="CodeTemplateProcessorFactories">
                     <file name="org-netbeans-modules-csl-editor-codetemplates-GsfCodeTemplateProcessor$Factory.instance"/>
-                </folder>
-            </folder>
-            <folder name="blade-markup">
-                <file name="language.instance">
-                    <attr name="instanceCreate" methodvalue="org.netbeans.modules.php.blade.editor.lexer.BladeTokenId.language"/>
-                    <attr name="instanceOf" stringvalue="org.netbeans.api.lexer.Language"/>
-                </file>
-                <folder name="BracesMatchers">
-                    <file name="org-modules-php-blade-editor-BladeBracesMatcher$Factory.instance">
-                        <attr name="position" intvalue="0"/>
-                    </file>
                 </folder>
             </folder>
         </folder>

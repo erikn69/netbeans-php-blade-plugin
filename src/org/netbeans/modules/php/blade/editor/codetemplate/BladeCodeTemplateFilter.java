@@ -64,7 +64,8 @@ import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
 /**
- *
+ * seems to be used together with editor extender
+ * 
  * @author Haidu Bogdan
  */
 public class BladeCodeTemplateFilter extends UserTask implements CodeTemplateFilter {

@@ -62,7 +62,7 @@
 // *
 // * @author Haidu Bogdan
 // */
-//@EmbeddingProvider.Registration(mimeType = BladeLanguage.BLADE_MIME_TYPE, targetMimeType="text/html-xxxx")
+//@EmbeddingProvider.Registration(mimeType = BladeLanguage.BLADE_MIME_TYPE, targetMimeType="text/html")
 //
 //public class BladeHtmlEmbeddingProvider extends EmbeddingProvider {
 //    static String HTML_MIME_TYPE = "text/html";
@@ -77,13 +77,11 @@
 //        sequence.moveStart();
 //        List<Embedding> embeddings = new ArrayList<>();
 //
-//        int offset = -1;
-//        int length = 0;
 //        int from = -1;
 //        int len = 0;
 //        while (sequence.moveNext()) {
 //            Token t = sequence.token();
-//            if (t.id() != BladeTopTokenId.T_PHP) {
+//            if (t.id() != BladeTopTokenId.T_HTML) {
 //                if (from < 0) {
 //                    from = sequence.offset();
 //                }
@@ -94,7 +92,7 @@
 //                    //lets suppose the text is always html :-(
 //                    embeddings.add(snapshot.create(from, len, HTML_MIME_TYPE));
 //                    //add only one virtual generated token for a sequence of PHP tokens
-//                    //embeddings.add(snapshot.create("@@@", HTML_MIME_TYPE));
+//                    embeddings.add(snapshot.create("@@@", HTML_MIME_TYPE));
 //                }
 //
 //                from = -1;
@@ -107,7 +105,7 @@
 //        }
 //        
 //        if (embeddings.isEmpty()) {
-//            return Collections.singletonList(snapshot.create("", "text/html"));
+//            return Collections.singletonList(snapshot.create("", HTML_MIME_TYPE));
 //        } else {
 //            return Collections.singletonList(Embedding.create(embeddings));
 //        }

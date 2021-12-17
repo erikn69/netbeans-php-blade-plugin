@@ -61,11 +61,11 @@ public class BladeLexer implements Lexer<BladeTokenId> {
 
     protected BladeLexerState state;
     protected final TokenFactory<BladeTokenId> tokenFactory;
-    private final BladeDirectiveColoringLexer scanner;
+    private final BladeColoringLexer scanner;
     protected final LexerInput input;
     
     BladeLexer( LexerRestartInfo<BladeTokenId> info ) {
-        scanner = new BladeDirectiveColoringLexer(info);
+        scanner = new BladeColoringLexer(info);
         tokenFactory = info.tokenFactory();
         input = info.input();
         //state = info.state() == null ? new BladeLexerState() : new BladeLexerState( (BladeLexerState)info.state() );
@@ -85,7 +85,7 @@ public class BladeLexer implements Lexer<BladeTokenId> {
             }
             return token;
         } catch (IOException ex) {
-            Logger.getLogger(BladeTopLexer.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(BladeLexer.class.getName()).log(Level.SEVERE, null, ex);
         }
         return null;
     }
