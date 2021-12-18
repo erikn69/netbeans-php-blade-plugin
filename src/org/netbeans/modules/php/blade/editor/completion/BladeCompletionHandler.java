@@ -306,6 +306,17 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 
     @Override
     public QueryType getAutoQuery(JTextComponent jtc, String string) {
+        if (string.length() == 0) {
+            return QueryType.NONE;
+        }
+        char lastChar = string.charAt(string.length() - 1);
+        Document document = jtc.getDocument();
+        //TokenHierarchy th = TokenHierarchy.get(document);
+        int offset = jtc.getCaretPosition();
+//        TokenSequence<PHPTokenId> ts = LexUtilities.getPHPTokenSequence(document, offset);
+//        if (ts == null) {
+//            return QueryType.STOP;
+//        }
         return QueryType.ALL_COMPLETION;
     }
 
@@ -355,7 +366,6 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
             this.offset = offset;
             this.upToOffset = upToOffset;
             this.doc = (BaseDocument) info.getSnapshot().getSource().getDocument(false);
-
         }
 
         String resolve() {
@@ -384,48 +394,6 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
             }
 
             return result;
-        }
-
-        private void processHierarchy(TokenHierarchy<?> th) {
-            TokenSequence<BladeTokenId> tts = th.tokenSequence(BladeTokenId.language());
-            if (tts != null) {
-                processTopSequence(tts);
-            }
-            TokenSequence<HTMLTokenId> thtml = th.tokenSequence(HTMLTokenId.language());
-            if (thtml != null) {
-                processTopHtmlSequence(thtml);
-            }
-        }
-
-        private void processTopHtmlSequence(TokenSequence<HTMLTokenId> tts) {
-            tts.move(offset);
-            if (tts.moveNext() || tts.movePrevious()) {
-                TokenSequence<? extends TokenId> ts = tts.embedded(HTMLTokenId.language());
-
-                processSequence(ts);
-            }
-        }
-
-        private void processTopSequence(TokenSequence<BladeTokenId> tts) {
-            tts.move(offset);
-            if (tts.moveNext() || tts.movePrevious()) {
-                TokenSequence<? extends TokenId> ts = tts.embedded(BladeTokenId.language());
-
-                processSequence(ts);
-            }
-        }
-
-        private void processSequence(TokenSequence<? extends TokenId> ts) {
-            if (ts != null) {
-                processValidSequence(ts);
-            }
-        }
-
-        private void processValidSequence(TokenSequence<? extends TokenId> ts) {
-            ts.move(offset);
-            if (ts.moveNext() || ts.movePrevious()) {
-                processToken(ts);
-            }
         }
 
         private void processToken(TokenSequence<? extends TokenId> ts) {

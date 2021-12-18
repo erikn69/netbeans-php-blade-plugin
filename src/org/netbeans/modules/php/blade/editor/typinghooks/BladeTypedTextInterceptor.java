@@ -105,20 +105,14 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
             return;
         }
 
-        Token<BladeTokenId> token = ts.token();
-        BladeTokenId id = token.id();
-        int tokenOffset = ts.offset();
         boolean skipQuote = false;
         boolean isInString = false;
-        boolean completeDispatched = false;
 
         // complete quote or bracket
         if (isOpeningBracket(ch) || isQuote(ch)) {
             if (selection != null && selection.length() > 0) {
-                completeDispatched = true;
                 surroundSelectionWithChars(selection, ch, context);
             } else {
-                completeDispatched = true;
                 completeQuoteAndBracket(context, ch);
             }
         }
@@ -135,32 +129,9 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
                     skipNextChar(context, ch, document, caretOffset);
                 }
             }
+        } else if (ch == '{') {
+            //skipNextChar(context, ch, document, caretOffset);
         }
-
-        if (!completeDispatched && id == BladeTokenId.T_HTML) {
-            // {{}} or {!!!!}
-            if ((isOpeningBracket(ch) || isQuote(ch))
-                    && tokenOffset != caretOffset) {
-                completeQuoteAndBracket(context, ch);
-                
-                
-            } else if (ch == '{') {
-                ts.move(tokenOffset + 1);
-                Token<BladeTokenId> token2 = ts.token();
-                if (token2 != null){
-                    String tokenText = token2.text().toString();
-                    BladeTokenId id2 = token2.id();
-                }
-            }
-        } else if (id == BladeTokenId.T_BLADE_OPEN_ECHO) {
-             StringBuilder sb = new StringBuilder();
-            sb.append("{{");
-            sb.append(" ${cursor} ");
-            sb.append("}}");
-            String text = sb.toString();
-            context.setText(text, 1);
-        }
-
     }
 
     @Override
@@ -239,29 +210,28 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
                 }
             // no break
             case '!':
-                String mimeType = getMimeType();
-                // do nothing in {!! !!} and {{ }}
-//                if (mimeType.equals(BladeLanguage.BLADE_MIME_TYPE)) {
-//                    
-//                    return;
-//                }
-                TokenSequence<? extends HTMLTokenId> ts = BladeLexerUtils.getHtmlTokenSequence(doc, tokenEndPos);
+                TokenHierarchy<Document> th = TokenHierarchy.get(doc);
+                TokenSequence<BladeTokenId> ts = th.tokenSequence(BladeTokenId.language());
+                
                 if (ts == null) {
                     return;
                 }
                 ts.move(tokenEndPos);
-                if (!ts.movePrevious() && !ts.moveNext()) {
+                if (!ts.moveNext() && !ts.movePrevious()) {
                     return;
                 }
-
-                Token<? extends HTMLTokenId> token = ts.token();
-                HTMLTokenId id = token.id();
-                CharSequence tokenText = token.text();
-                //maybe have custom tokens
-                if (ch == '{' && id == HTMLTokenId.EL_OPEN_DELIMITER || (id == HTMLTokenId.TEXT && tokenText.toString().contains("{{"))) {
-                    completeOpeningDelimiter(doc, tokenEndPos, tokenEndPos + 1, caret, "  }}");
-                } else if (OptionsUtils.autoCompletionEscapedEchoDelimiter() && id == HTMLTokenId.TEXT && tokenText.toString().contains("{!!")) {
-                    completeOpeningDelimiter(doc, tokenEndPos, tokenEndPos + 1, caret, "  !!}");
+                
+                Token<BladeTokenId> token = ts.token();
+                BladeTokenId id = token.id();
+                if (id == BladeTokenId.T_BLADE_OPEN_ECHO){
+                    ts.movePrevious();
+                    Token<BladeTokenId> token2 = ts.token();
+                    String openToken = token2.text().toString();
+                    if (!isOpeningEchoToken(openToken)){
+                        return;
+                    }
+                    String closingToken = matching(openToken);
+                    completeOpeningDelimiter(doc, tokenEndPos, tokenEndPos + 1, caret, "  " + closingToken);
                 }
                 break;
             default:
@@ -288,14 +258,6 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         context.setText(text, 1);
     }
 
-    private String getMimeType() {
-        int size = mimePath.size();
-        if (size <= 0) {
-            return ""; // NOI18N
-        }
-        return mimePath.getMimeType(size - 1);
-    }
-
     private static boolean isBracket(char c) {
         return isOpeningBracket(c) || isClosingBracket(c);
     }
@@ -304,6 +266,16 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         switch (c) {
             case '(': // no break
             case '[': // no break
+                return true;
+            default:
+                return false;
+        }
+    }
+    
+    private static boolean isOpeningEchoToken(String token) {
+        switch (token) {
+            case "{{": // no break
+            case "{!!": // no break
                 return true;
             default:
                 return false;
@@ -342,16 +314,23 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
                 return c;
         }
     }
+    
+    private static String matching(String token) {
+        switch (token) {
+            case "{{":
+                return "}}";
+            case "{!!":
+                return "!!}";
+            default:
+                return token;
+        }
+    }
 
     private static boolean doNotAutoCompleteQuotesAndBrackets(char c) {
         return (isQuote(c) && !OptionsUtils.autoCompletionEchoDelimiter())
                 || (isBracket(c) && !TypingHooksUtils.isInsertMatchingEnabled());
     }
-
-    private static boolean doNotAutoCompleteDelimiters(char c) {
-        return TypingHooksUtils.isOpeningDelimiterChar(c) && !OptionsUtils.autoCompletionEscapedEchoDelimiter();
-    }
-
+    
     private static boolean isClosingBracketMissing(BaseDocument docment, char open, char close, int dotPos) throws BadLocationException {
         if (!isClosingBracket(close)) {
             return false;
