@@ -383,6 +383,11 @@ CLOSE_BLADE_PHP = "@endphp";
     return BladeTokenId.T_BLADE_INCLUDE;
 }
 
+<ST_HTML> "@extends"{WHITESPACE}? {
+	pushState(ST_PHP_LOOKING_FOR_DIRECTIVE_ARG);
+    return BladeTokenId.T_BLADE_EXTENDS;
+}
+
 <ST_HTML> "@endsection"{WHITESPACE}? {
     return BladeTokenId.T_BLADE_ENDSECTION;
 }
@@ -430,7 +435,6 @@ CLOSE_BLADE_PHP = "@endphp";
 <ST_HTML> "@endforeach"{WHITESPACE}? {
     return BladeTokenId.T_BLADE_ENDFOREACH;
 }
-
 
 <ST_HTML> "@endfor"{WHITESPACE}? {
     return BladeTokenId.T_BLADE_ENDFOR;

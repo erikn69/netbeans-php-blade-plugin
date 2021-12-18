@@ -172,8 +172,8 @@ public class BladeDeclarationFinder implements DeclarationFinder {
                     if (value == null) {
                         continue;
                     }
-                    if (viewPath.equals(value.toString())) {
-                        return new DeclarationLocation(
+                    if (viewPath.equals(value.toString()) && alternatives == DeclarationLocation.NONE) {
+                         return new DeclarationLocation(
                                 view.getKey(), 0);
                     }
                     if (value.toString().endsWith(viewPath)) {

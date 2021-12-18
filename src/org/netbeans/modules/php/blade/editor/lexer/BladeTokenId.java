@@ -73,6 +73,7 @@ public enum BladeTokenId implements TokenId {
     T_BLADE_CLOSE_ECHO( null, "blade_echo" ),
     T_BLADE_PHP_OPEN(null, "blade_directive"),
     T_BLADE_YIELD(null, "blade_directive"),
+    T_BLADE_EXTENDS(null, "blade_directive"),
     T_BLADE_SECTION(null, "blade_directive"),
     T_BLADE_INCLUDE(null, "blade_directive"),
     T_BLADE_FOREACH(null, "blade_directive"),

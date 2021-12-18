@@ -56,10 +56,10 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.api.html.lexer.HTMLTokenId;
 import org.netbeans.api.lexer.Token;
+import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.editor.BaseDocument;
-
 
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
 
@@ -94,7 +94,9 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         if (doNotAutoCompleteQuotesAndBrackets(ch) || caretOffset == 0) {
             return;
         }
-        TokenSequence<? extends TokenId> ts = BladeLexerUtils.getBladeMarkupTokenSequence(doc, caretOffset);
+        TokenHierarchy<Document> th = TokenHierarchy.get(document);
+        TokenSequence<BladeTokenId> ts = th.tokenSequence(BladeTokenId.language());
+
         if (ts == null) {
             return;
         }
@@ -103,42 +105,62 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
             return;
         }
 
-        Token<? extends TokenId> token = ts.token();
-        TokenId id = token.id();
+        Token<BladeTokenId> token = ts.token();
+        BladeTokenId id = token.id();
         int tokenOffset = ts.offset();
         boolean skipQuote = false;
         boolean isInString = false;
+        boolean completeDispatched = false;
 
-        if (id instanceof BladeTokenId) {
-            // complete quote or bracket
-            if (isOpeningBracket(ch) || isQuote(ch)) {
-                if (selection != null && selection.length() > 0) {
-                    surroundSelectionWithChars(selection, ch, context);
-                } else {
-                    completeQuoteAndBracket(context, ch);
+        // complete quote or bracket
+        if (isOpeningBracket(ch) || isQuote(ch)) {
+            if (selection != null && selection.length() > 0) {
+                completeDispatched = true;
+                surroundSelectionWithChars(selection, ch, context);
+            } else {
+                completeDispatched = true;
+                completeQuoteAndBracket(context, ch);
+            }
+        }
+
+        // skip the same closing char
+        if ((isClosingBracket(ch) || isQuote(ch))
+                && TypingHooksUtils.sameAsExistingChar(doc, ch, caretOffset)) {
+            if (isInString) {
+                if (!skipQuote && isQuote(ch) && !TypingHooksUtils.isEscapeSequence(doc, caretOffset)) {
+                    skipNextChar(context, ch, document, caretOffset);
+                }
+            } else {
+                if (!skipQuote && !isClosingBracketMissing(doc, matching(ch), ch, caretOffset)) {
+                    skipNextChar(context, ch, document, caretOffset);
                 }
             }
+        }
 
-            // skip the same closing char
-            if ((isClosingBracket(ch) || isQuote(ch))
-                    && TypingHooksUtils.sameAsExistingChar(doc, ch, caretOffset)) {
-                if (isInString) {
-                    if (!skipQuote && isQuote(ch) && !TypingHooksUtils.isEscapeSequence(doc, caretOffset)) {
-                        skipNextChar(context, ch, document, caretOffset);
-                    }
-                } else {
-                    if (!skipQuote && !isClosingBracketMissing(doc, matching(ch), ch, caretOffset)) {
-                        skipNextChar(context, ch, document, caretOffset);
-                    }
-                }
-            }
-        } else if(id == BladeTokenId.T_HTML) {
+        if (!completeDispatched && id == BladeTokenId.T_HTML) {
             // {{}} or {!!!!}
             if ((isOpeningBracket(ch) || isQuote(ch))
                     && tokenOffset != caretOffset) {
                 completeQuoteAndBracket(context, ch);
+                
+                
+            } else if (ch == '{') {
+                ts.move(tokenOffset + 1);
+                Token<BladeTokenId> token2 = ts.token();
+                if (token2 != null){
+                    String tokenText = token2.text().toString();
+                    BladeTokenId id2 = token2.id();
+                }
             }
+        } else if (id == BladeTokenId.T_BLADE_OPEN_ECHO) {
+             StringBuilder sb = new StringBuilder();
+            sb.append("{{");
+            sb.append(" ${cursor} ");
+            sb.append("}}");
+            String text = sb.toString();
+            context.setText(text, 1);
         }
+
     }
 
     @Override
@@ -162,8 +184,8 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
 
     /**
      * Surround the selected text with chars("", '', (), {}, []).
-     * <b>NOTE:</b> Replace the surrounding chars if the text is already surrounded with
-     * chars.
+     * <b>NOTE:</b> Replace the surrounding chars if the text is already
+     * surrounded with chars.
      *
      * @param selection the selected text
      * @param ch the opening bracket
@@ -203,7 +225,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         char ch = context.getText().charAt(0);
         //for debug
         String contextText = context.getText();
-        char[] validChars = new char[] {'{','!'};
+        char[] validChars = new char[]{'{', '!'};
         boolean isValidChar = new String(validChars).indexOf(ch) >= 0;
         if (!isValidChar || dotPos == 0
                 || tokenEndPos > doc.getLength()) {
@@ -211,17 +233,18 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
         }
 
         switch (ch) {
-            case '{': 
-                if (!OptionsUtils.autoCompletionEchoDelimiter()){
+            case '{':
+                if (!OptionsUtils.autoCompletionEchoDelimiter()) {
                     return;
                 }
-                // no break
+            // no break
             case '!':
                 String mimeType = getMimeType();
                 // do nothing in {!! !!} and {{ }}
-                if (mimeType.equals(BladeLanguage.BLADE_MIME_TYPE) ) {
-                    return;
-                }
+//                if (mimeType.equals(BladeLanguage.BLADE_MIME_TYPE)) {
+//                    
+//                    return;
+//                }
                 TokenSequence<? extends HTMLTokenId> ts = BladeLexerUtils.getHtmlTokenSequence(doc, tokenEndPos);
                 if (ts == null) {
                     return;
@@ -237,7 +260,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
                 //maybe have custom tokens
                 if (ch == '{' && id == HTMLTokenId.EL_OPEN_DELIMITER || (id == HTMLTokenId.TEXT && tokenText.toString().contains("{{"))) {
                     completeOpeningDelimiter(doc, tokenEndPos, tokenEndPos + 1, caret, "  }}");
-                } else if (OptionsUtils.autoCompletionEscapedEchoDelimiter() && id == HTMLTokenId.TEXT && tokenText.toString().contains("{!!")){
+                } else if (OptionsUtils.autoCompletionEscapedEchoDelimiter() && id == HTMLTokenId.TEXT && tokenText.toString().contains("{!!")) {
                     completeOpeningDelimiter(doc, tokenEndPos, tokenEndPos + 1, caret, "  !!}");
                 }
                 break;
@@ -338,8 +361,7 @@ public class BladeTypedTextInterceptor implements TypedTextInterceptor {
 
     @MimeRegistrations(value = {
         @MimeRegistration(mimeType = "text/html", service = TypedTextInterceptor.Factory.class),
-        @MimeRegistration(mimeType = BladeLanguage.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class),
-        //@MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class)
+        @MimeRegistration(mimeType = BladeLanguage.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class), //@MimeRegistration(mimeType = BladeTokenId.BLADE_MIME_TYPE, service = TypedTextInterceptor.Factory.class)
     })
     public static class Factory implements TypedTextInterceptor.Factory {
 

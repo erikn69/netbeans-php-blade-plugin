@@ -390,7 +390,7 @@ T_VARIABLE:var {:
     if (var == null) {
         var = "";
     }
-        
+    RESULT = new Variable(varleft, varright, var.toString());    
 :}
 | variable:expr1 T_NEKUDA variable:expr2 {:
     //we will force just one string

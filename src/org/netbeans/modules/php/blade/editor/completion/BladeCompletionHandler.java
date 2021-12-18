@@ -41,6 +41,7 @@
  */
 package org.netbeans.modules.php.blade.editor.completion;
 
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java_cup.runtime.Symbol;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
@@ -78,6 +80,13 @@ import org.netbeans.modules.csl.spi.ParserResult;
 import org.netbeans.modules.php.blade.editor.BladeProjectSupport;
 import org.netbeans.modules.php.blade.editor.completion.BladeCompletionContextFinder.KeywordCompletionType;
 import org.netbeans.modules.php.blade.editor.completion.BladeCompletionItem.CompletionRequest;
+import org.netbeans.modules.php.editor.api.ElementQuery;
+import org.netbeans.modules.php.editor.api.ElementQueryFactory;
+import org.netbeans.modules.php.editor.api.NameKind;
+import org.netbeans.modules.php.editor.api.QuerySupportFactory;
+import org.netbeans.modules.php.editor.api.elements.ClassElement;
+import org.netbeans.modules.php.editor.parser.ASTPHP5Scanner;
+import org.netbeans.modules.php.editor.parser.ASTPHP5Symbols;
 import org.openide.filesystems.FileObject;
 import org.openide.util.NbBundle;
 
@@ -108,17 +117,14 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
     static {
         BLADE_DIRECTIVES.put("@yield", KeywordCompletionType.WITH_ARG); //NOI18N
         BLADE_DIRECTIVES.put("@extends", KeywordCompletionType.WITH_ARG); //NOI18N
-        BLADE_DIRECTIVES.put("@if", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
-        BLADE_DIRECTIVES.put("@for", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
-        BLADE_DIRECTIVES.put("@foreach", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
-        BLADE_DIRECTIVES.put("@section", KeywordCompletionType.WITH_ARG_AND_ENDTAG);
+        BLADE_DIRECTIVES.put("@include", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_DIRECTIVES.put("@includeIf", KeywordCompletionType.WITH_ARG); //NOI18N
+        BLADE_DIRECTIVES.put("@if", KeywordCompletionType.WITH_ARG_AND_ENDTAG); //NOI18N
+        BLADE_DIRECTIVES.put("@for", KeywordCompletionType.WITH_ARG_AND_ENDTAG); //NOI18N
+        BLADE_DIRECTIVES.put("@foreach", KeywordCompletionType.WITH_ARG_AND_ENDTAG); //NOI18N
+        BLADE_DIRECTIVES.put("@section", KeywordCompletionType.WITH_ARG_AND_ENDTAG); //NOI18N
         BLADE_DIRECTIVES.put("@php", KeywordCompletionType.WITH_ENDTAG);
-        //BLADE_DIRECTIVES.put("@continue", KeywordCompletionType.SIMPLE);
     }
-
-    private static final String[] PHP_LANGUAGE_CONSTRUCTS_WITH_PARENTHESES = {
-        "@if", "@extends" // NOI18N
-    };
 
     private static final Collection<Character> AUTOPOPUP_STOP_CHARS = new TreeSet<>(
             Arrays.asList('=', ';', '+', '-', '*', '/',
@@ -126,42 +132,7 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 
     @Override
     public CodeCompletionResult complete(CodeCompletionContext codeCompletionContext) {
-        //final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
-/*
-        ParserResult info = codeCompletionContext.getParserResult();
-        final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
-        BladeProjectSupport sup = BladeProjectSupport.findFor(fileObject);
-        if (sup != null) {
-            BladeIndex index = sup.getIndex();
-            DependenciesGraph deps = index.getDependencies(fileObject);
-            Collection<FileObject> refered = deps.getAllReferedFiles();
-            //get map of all fileobject declaring classes with the prefix
-            Map<FileObject, Collection<String>> search = index.findAllExtendsDeclarations(); //cut off the dot (.)
-            for (FileObject fo : search.keySet()) {
-                //allids.addAll(search.get(fo));
-                //is the file refered by the current file?
-                if (refered.contains(fo)) {
-                    //yes - add its classes
-                    //refids.addAll(search.get(fo));
-                }
-            }
-        }
-        //check index flow
 
-        //ElementQuery index = ElementQueryFactory.getIndexQuery(info);
-        ElementQuery.Index indexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(fileObject));
-        final NameKind nameQuery = NameKind.caseInsensitivePrefix("Lmc");
-        Set<ClassElement> classes = indexQuery.getClasses(nameQuery);
-
-        for (ClassElement clazz : classes) {
-            String test = clazz.getName();
-            String className = clazz.getFilenameUrl();
-        } 
-         */
-
-//                        NameKind.caseInsensitivePrefix(QualifiedName.create("$").toNotFullyQualified()));
-        //Set<TypeElement>  cachedElements = indexQuery.getTypes(NameKind.empty());
-        //String currentlyEditedFileURL = fileObject.toURL().toString();
         final List<CompletionProposal> completionProposals = new ArrayList<>();
         ParserResult parserResult = codeCompletionContext.getParserResult();
 
@@ -200,11 +171,17 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 
     private void doCompletion(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
         switch (request.context) {
-            case EXTENDS:
+            case PATH:
                 completeBladeViews(completionProposals, request);
-                //  completeAll(completionProposals, request);
+                break;
+            case DIRECTIVE:
+                completeDirectives(completionProposals, request);
                 break;
             case PHP:
+                //might need some optimisations
+                if (request.prefix.length() > 0){
+                    completePhpClasses(completionProposals, request);
+                }
                 break;
             case ALL:
                 completeAll(completionProposals, request);
@@ -225,34 +202,71 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
         if (request.index == null) {
             return;
         }
-        Map<FileObject, Collection<String>> search = request.index.findAllExtendsDeclarations();
+        Map<FileObject, Collection<String>> search = request.index.findAllBladeViewPaths();
         for (Map.Entry<FileObject, Collection<String>> entry : search.entrySet()) {
-            // Collection<?> value = search.get(fo).value;
             Collection<?> values = entry.getValue();
             for (Object value : values) {
                 if (value == null) {
                     continue;
                 }
-                BladeElement element = new BladeElement(value.toString());
+                String path = value.toString();
+                BladeElement element;
+                if (request.prefix.contains("@extends") || request.prefix.contains("@include") || request.prefix.contains("@includeIf")) {
+                    element = new BladeElement(request.prefix + "(\"" + path + "\")");
+                } else {
+                    element = new BladeElement(path);
+                }
                 completionProposals.add(new BladeCompletionItem(element, request));
             }
+        }
+    }
+
+    private void completePhpClasses(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
+        ParserResult info = request.parserResult;
+        final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
+
+        ElementQuery.Index indexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(fileObject));
+        //if T_BLADE_PHP we need to scan text
+        ASTPHP5Scanner scanner = new ASTPHP5Scanner(new StringReader("<?php " + request.prefix));
+        Symbol symbol;
+        Symbol lastSymbol = null;
+        String lastPrefix = "";
+        int count = 0;
+        
+        try {
+            do {
+                symbol = scanner.next_token();
+                if (symbol.sym != 0 && symbol.value != null){
+                    lastSymbol = symbol;
+                }
+                count++;
+            } while (symbol.sym != ASTPHP5Symbols.EOF);
+        } catch (Exception ex) {
+
+        }
+        if (lastSymbol != null && lastSymbol.sym == ASTPHP5Symbols.T_STRING){
+            lastPrefix = lastSymbol.value.toString(); 
+        }
+        
+        if (lastPrefix.length() == 0){
+            return;
+        }
+        
+        //filter only Php Classes
+        final NameKind nameQuery = NameKind.caseInsensitivePrefix(lastPrefix);
+        Set<ClassElement> classes = indexQuery.getClasses(nameQuery);
+
+        for (ClassElement clazz : classes) {
+            String className = clazz.getName();
+            String classPath = clazz.getFilenameUrl();
+            request.anchorOffset+= request.prefix.length() - lastPrefix.length();
+            request.prefix = lastPrefix;       
+            completionProposals.add(new BladeCompletionItem.KeywordItem(className, request));
         }
 
-        /* 
-        //file blade tests
-        
-        Map<FileObject, Collection<String>> views = request.index.findAllBladeViewPaths();
-        for (Map.Entry<FileObject, Collection<String>> view : views.entrySet()) {
-            Collection<?> values = view.getValue();
-            for (Object value : values) {
-                if (value == null) {
-                    continue;
-                }
-                BladeElement element = new BladeElement(value.toString());
-                completionProposals.add(new BladeCompletionItem(element, request));
-            }
-        }
-         */
+//                        NameKind.caseInsensitivePrefix(QualifiedName.create("$").toNotFullyQualified()));
+        //Set<TypeElement>  cachedElements = indexQuery.getTypes(NameKind.empty());
+        //String currentlyEditedFileURL = fileObject.toURL().toString();
     }
 
     private void completeDirectives(final List<CompletionProposal> completionProposals, final CompletionRequest request) {

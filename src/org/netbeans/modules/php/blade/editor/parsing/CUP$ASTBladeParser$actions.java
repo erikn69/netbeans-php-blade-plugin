@@ -137,7 +137,7 @@ class CUP$ASTBladeParser$actions {
     if (var == null) {
         var = "";
     }
-        
+        RESULT = new Variable(varleft, varright, var);  
 
               CUP$ASTBladeParser$result = parser.getSymbolFactory().newSymbol("variable",14, ((java_cup.runtime.Symbol)CUP$ASTBladeParser$stack.peek()), ((java_cup.runtime.Symbol)CUP$ASTBladeParser$stack.peek()), RESULT);
             }

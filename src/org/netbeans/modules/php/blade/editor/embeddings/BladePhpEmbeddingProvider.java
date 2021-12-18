@@ -108,7 +108,7 @@ public class BladePhpEmbeddingProvider extends EmbeddingProvider {
                 fake = new String(new char[tText.length()]).replace("\0", " ");
                 embeddings.add(snapshot.create(fake, PHP_MIME_TYPE));
             } else {
-                embeddings.add(snapshot.create(offset, t.length(), "text/html"));
+                embeddings.add(snapshot.create(offset, t.length(), PHP_MIME_TYPE));
             }
         }
 
