@@ -121,6 +121,7 @@ public class BladeParser extends Parser {
                     result = new BladeParserResult(context.getSnapshot(), program);
                     BladeErrorHandler errh = (BladeErrorHandler) parser.getErrorHandler();
                     errh.displaySyntaxErrors(program);
+                    result.createPhpIndexQuery(snapshot, fileObject);
                 } else {
                     int end = snapshot.getText().toString().length();
                     List<Statement> statements = new ArrayList<>();

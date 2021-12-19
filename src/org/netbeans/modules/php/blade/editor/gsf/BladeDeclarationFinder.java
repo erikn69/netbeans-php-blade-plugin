@@ -148,6 +148,8 @@ public class BladeDeclarationFinder implements DeclarationFinder {
                     break;
                 }
                 TokenId tokenId = token.id();
+                 TokenSequence<?> embedded = ts.embedded();
+                 Token<?> embeddedToken = embedded.token();
                 if (BladeTokenId.T_DIRECTIVE_ARG.equals(tokenId) || BladeTokenId.T_BLADE_PHP_VAR.equals(tokenId)) {
                     viewPath = token.text().toString().trim();
                     viewPath = viewPath.substring(1, viewPath.length() - 1);

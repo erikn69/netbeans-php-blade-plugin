@@ -41,12 +41,21 @@
  */
 package org.netbeans.modules.php.blade.editor.parsing;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.netbeans.modules.csl.spi.ParserResult;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.php.blade.editor.parsing.astnodes.BladeProgram;
 import org.netbeans.modules.csl.api.Error;
+import org.netbeans.modules.php.editor.api.ElementQuery;
+import org.netbeans.modules.php.editor.api.ElementQueryFactory;
+import org.netbeans.modules.php.editor.api.QuerySupportFactory;
+import org.netbeans.modules.php.editor.parser.PHPParseResult;
+import org.netbeans.modules.php.editor.parser.astnodes.Comment;
+import org.netbeans.modules.php.editor.parser.astnodes.Program;
+import org.netbeans.modules.php.editor.parser.astnodes.Statement;
+import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -58,6 +67,7 @@ public class BladeParserResult extends ParserResult {
     //private Model model;
     private final BladeProgram root;
     private List<Error> errors;
+    private ElementQuery.Index phpIndexQuery;
 
     BladeParserResult(Snapshot snapshot) {
         super(snapshot);
@@ -94,6 +104,23 @@ public class BladeParserResult extends ParserResult {
     @Override
     public List<? extends org.netbeans.modules.csl.api.Error> getDiagnostics() {
         return errors;
+    }
+
+    public void setPhpIndexQuery(ElementQuery.Index indexQuery) {
+        phpIndexQuery = indexQuery;
+    }
+
+    public ElementQuery.Index getPhpIndexQuery() {
+        return phpIndexQuery;
+    }
+    
+    public void createPhpIndexQuery(Snapshot snapshot, FileObject fileObject) {
+        int end = snapshot.getText().toString().length();
+        List<Statement> statements = new ArrayList<>();
+        Program emptyProgram = new Program(0, end, statements, Collections.<Comment>emptyList());
+        PHPParseResult result = new PHPParseResult(snapshot, emptyProgram);
+
+        phpIndexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(result));
     }
 
 //    public synchronized Model getModel() {

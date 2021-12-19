@@ -399,9 +399,18 @@ CLOSE_BLADE_PHP = "@endphp";
 
 <ST_PHP_LOOKING_FOR_DIRECTIVE_ARG>")" {
     //directive end
+    if (yylength() == 1){
+        popState();
+        return BladeTokenId.BLADE_PHP_TOKEN;
+    }
     yypushback(1);
 	popState();
     return BladeTokenId.T_BLADE_PHP_VAR;
+}
+
+<ST_PHP_LOOKING_FOR_DIRECTIVE_ARG>{ANY_CHAR} {
+    String yytext = yytext();
+    int debug = 1;
 }
 
 <ST_HTML> "@foreach"{WHITESPACE}? {

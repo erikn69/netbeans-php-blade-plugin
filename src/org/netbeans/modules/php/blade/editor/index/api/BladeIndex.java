@@ -491,7 +491,7 @@ public class BladeIndex {
         String extension = dotIndex == -1 ? null : importedFileName.substring(dotIndex + 1);
 
         if(extension == null
-                || (!SASS_EXT.equalsIgnoreCase(extension) && !BLADE_EXT.equals(extension))) {
+                || (!BLADE_EXT.equals(extension))) {
             //no extension at all or the extension is not SASS or SCSS
 
             //if the original reference is not resolved to an existing file
@@ -509,13 +509,6 @@ public class BladeIndex {
                 return resolvedReference;
             }
 
-            //if still nothing then try .sass extension as a last resort
-            String impliedSassExt = createImpliedFileName(importedFileName, SASS_EXT, false); //NOI18N
-            resolvedReference = WebUtils.resolveToReference(source, impliedSassExt);
-            if(resolvedReference != null) {
-                return resolvedReference;
-            }
-
              //lets try to imply the leading underscore for sass partials
             String impliedUnderscoreAndSassExt = createImpliedFileName(importedFileName, BLADE_EXT, true); //NOI18N
             resolvedReference = WebUtils.resolveToReference(source, impliedUnderscoreAndSassExt);
@@ -523,7 +516,7 @@ public class BladeIndex {
                 return resolvedReference;
             }
 
-        } else if(SASS_EXT.equalsIgnoreCase(extension) || BLADE_EXT.equalsIgnoreCase(extension)) {
+        } else if(BLADE_EXT.equalsIgnoreCase(extension)) {
             //lets try to imply the leading underscore for sass partials
             String impliedUnderscoreAndSassExt = createImpliedFileName(importedFileName, null, true);
             resolvedReference = WebUtils.resolveToReference(source, impliedUnderscoreAndSassExt);

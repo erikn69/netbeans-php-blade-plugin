@@ -77,9 +77,12 @@ import org.netbeans.modules.csl.api.ElementHandle;
 import org.netbeans.modules.csl.api.ParameterInfo;
 import org.netbeans.modules.csl.spi.DefaultCompletionResult;
 import org.netbeans.modules.csl.spi.ParserResult;
+import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.php.blade.editor.BladeProjectSupport;
 import org.netbeans.modules.php.blade.editor.completion.BladeCompletionContextFinder.KeywordCompletionType;
 import org.netbeans.modules.php.blade.editor.completion.BladeCompletionItem.CompletionRequest;
+import org.netbeans.modules.php.blade.editor.parsing.astnodes.BladeProgram;
+import org.netbeans.modules.php.editor.parser.astnodes.Statement;
 import org.netbeans.modules.php.editor.api.ElementQuery;
 import org.netbeans.modules.php.editor.api.ElementQueryFactory;
 import org.netbeans.modules.php.editor.api.NameKind;
@@ -87,6 +90,9 @@ import org.netbeans.modules.php.editor.api.QuerySupportFactory;
 import org.netbeans.modules.php.editor.api.elements.ClassElement;
 import org.netbeans.modules.php.editor.parser.ASTPHP5Scanner;
 import org.netbeans.modules.php.editor.parser.ASTPHP5Symbols;
+import org.netbeans.modules.php.editor.parser.PHPParseResult;
+import org.netbeans.modules.php.editor.parser.astnodes.Comment;
+import org.netbeans.modules.php.editor.parser.astnodes.Program;
 import org.openide.filesystems.FileObject;
 import org.openide.util.NbBundle;
 
@@ -179,7 +185,7 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
                 break;
             case PHP:
                 //might need some optimisations
-                if (request.prefix.length() > 0){
+                if (request.prefix.length() > 0) {
                     completePhpClasses(completionProposals, request);
                 }
                 break;
@@ -223,20 +229,28 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
 
     private void completePhpClasses(final List<CompletionProposal> completionProposals, final CompletionRequest request) {
         ParserResult info = request.parserResult;
-        final FileObject fileObject = info.getSnapshot().getSource().getFileObject();
+        if (!(info instanceof BladeParserResult)) {
+            return;
+        }
 
-        ElementQuery.Index indexQuery = ElementQueryFactory.createIndexQuery(QuerySupportFactory.get(fileObject));
+        BladeParserResult bladeParserResult = (BladeParserResult) info;
+        ElementQuery.Index indexQuery = bladeParserResult.getPhpIndexQuery();
+        if (indexQuery == null) {
+            return;
+        }
+
         //if T_BLADE_PHP we need to scan text
+        //maybe use embeded tokens ??
         ASTPHP5Scanner scanner = new ASTPHP5Scanner(new StringReader("<?php " + request.prefix));
         Symbol symbol;
         Symbol lastSymbol = null;
         String lastPrefix = "";
         int count = 0;
-        
+
         try {
             do {
                 symbol = scanner.next_token();
-                if (symbol.sym != 0 && symbol.value != null){
+                if (symbol.sym != 0 && symbol.value != null) {
                     lastSymbol = symbol;
                 }
                 count++;
@@ -244,23 +258,33 @@ public class BladeCompletionHandler implements CodeCompletionHandler2 {
         } catch (Exception ex) {
 
         }
-        if (lastSymbol != null && lastSymbol.sym == ASTPHP5Symbols.T_STRING){
-            lastPrefix = lastSymbol.value.toString(); 
+        if (lastSymbol != null && lastSymbol.sym == ASTPHP5Symbols.T_STRING) {
+            lastPrefix = lastSymbol.value.toString();
         }
-        
-        if (lastPrefix.length() == 0){
+
+        if (lastPrefix.length() == 0) {
             return;
         }
-        
+
         //filter only Php Classes
         final NameKind nameQuery = NameKind.caseInsensitivePrefix(lastPrefix);
         Set<ClassElement> classes = indexQuery.getClasses(nameQuery);
 
         for (ClassElement clazz : classes) {
-            String className = clazz.getName();
+            String in = clazz.getIn();
+            //skip classes which are not in context
+            if (in == null || in.isEmpty()){
+                continue;
+            }
+            
             String classPath = clazz.getFilenameUrl();
-            request.anchorOffset+= request.prefix.length() - lastPrefix.length();
-            request.prefix = lastPrefix;       
+            if (classPath.startsWith("jar")){
+                continue;
+            }
+            
+            String className = clazz.getName();
+            request.anchorOffset += request.prefix.length() - lastPrefix.length();
+            request.prefix = lastPrefix;
             completionProposals.add(new BladeCompletionItem.KeywordItem(className, request));
         }
 
