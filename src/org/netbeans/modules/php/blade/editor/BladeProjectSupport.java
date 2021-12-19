@@ -6,10 +6,14 @@ import java.util.WeakHashMap;
 import javax.swing.text.Document;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.netbeans.api.project.ProjectInformation;
+import org.netbeans.api.project.ProjectUtils;
 import org.netbeans.modules.csl.api.DataLoadersBridge;
+import org.netbeans.modules.php.project.PhpProject;
 
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.php.blade.editor.index.api.BladeIndex;
+import org.netbeans.spi.project.AuxiliaryConfiguration;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.MIMEResolver;
 import org.openide.util.Exceptions;
@@ -52,9 +56,19 @@ public class BladeProjectSupport {
     public static BladeProjectSupport findFor(FileObject fo) {
 	try {
 	    Project p = FileOwnerQuery.getOwner(fo);
+            
+            //AuxiliaryConfiguration ac = ProjectUtils.getAuxiliaryConfiguration(p);
 	    if (p == null) {
 		return null;
 	    }
+            //might be an internal project
+            if (!(p instanceof PhpProject)){
+                FileObject parent = p.getProjectDirectory().getParent();
+                p = FileOwnerQuery.getOwner(parent);
+                if (p == null) {
+                    return null;
+                }
+            }
             synchronized (INSTANCIES) {
 		BladeProjectSupport instance = INSTANCIES.get(p);
 		if (instance == null) {

@@ -36,7 +36,6 @@ public class BladeIndex {
     private static final Logger LOGGER = Logger.getLogger(BladeIndex.class.getSimpleName());
 
     private static final String BLADE_EXT = "blade.php"; //NOI18N
-    private static final String SASS_EXT = "sass"; //NOI18N
 
     private static final Map<Project, BladeIndex> INDEXES = new WeakHashMap<>();
     private static final String VIRTUAL_ELEMENT_MARKER_STR = BladeIndexer.VIRTUAL_ELEMENT_MARKER;
@@ -174,13 +173,10 @@ public class BladeIndex {
     }
 
     /**
-     * Returns a collection of file containing declaration of the css id.
-     * Note that the generic {@link #findIds(java.lang.String)} method
-     * also takes into account the usages of the css id in html code.
+     * Returns a collection of file containing declaration of extends
      *
-     * @since 1.28
      *
-     * @param id name of the css id
+     * @param id name of the @extend path
      * @return
      */
     public Collection<FileObject> findExtendsDeclarations(String extend) {
@@ -188,7 +184,6 @@ public class BladeIndex {
     }
 
     /**
-     * @since 1.28
      *
      * @return map of all id declarations. See {@link #findAll(org.netbeans.modules.css.refactoring.api.RefactoringElementType)}
      */
@@ -213,17 +208,6 @@ public class BladeIndex {
     public Collection<FileObject> findExtends(String extend) {
         return find(RefactoringElementType.FIELD_EXTENDS, extend);
     }
-
-    /**
-     *
-     * @param prefix
-     * @return map of fileobject to collection of classes defined in the file starting with prefix
-     */
-    /*
-    public Map<FileObject, Collection<String>> findClassesByPrefix(String prefix) {
-        return findByPrefix(RefactoringElementType.CLASS, prefix);
-    }
-    */
     
     /**
      *
@@ -334,20 +318,20 @@ public class BladeIndex {
     }
 
     /**
-     * Get all stylesheets from the project.
+     * Get all blade files from the project.
      *
      * @return
      */
     public Collection<FileObject> getAllIndexedFiles() {
         try {
             Collection<? extends IndexResult> results = querySupport.query(BladeIndexer.BLADE_CONTENT_KEY, "", QuerySupport.Kind.PREFIX, BladeIndexer.BLADE_CONTENT_KEY);
-            Collection<FileObject> stylesheets = new LinkedList<>();
+            Collection<FileObject> bladeFiles = new LinkedList<>();
             for(IndexResult result : filterDeletedFiles(results)) {
                 if(result.getFile().getMIMEType().equals(BladeLanguage.BLADE_MIME_TYPE)) {
-                    stylesheets.add(result.getFile());
+                    bladeFiles.add(result.getFile());
                 }
             }
-            return stylesheets;
+            return bladeFiles;
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
             return Collections.emptyList();
@@ -355,15 +339,15 @@ public class BladeIndex {
     }
 
     /**
-     * Gets all 'related' files to the given css file object.
+     * Gets all 'related' files to the given blade file object.
      *
-     * @param cssFile
+     * @param bladeFile
      * @return a collection of all files which either imports or are imported
      * by the given cssFile both directly and indirectly (transitive relation)
      */
-    public DependenciesGraph getDependencies(FileObject cssFile) {
+    public DependenciesGraph getDependencies(FileObject bladeFile) {
         try {
-            DependenciesGraph deps = new DependenciesGraph(cssFile);
+            DependenciesGraph deps = new DependenciesGraph(bladeFile);
             AllDependenciesMaps alldeps = getAllDependencies();
             resolveDependencies(deps.getSourceNode(), alldeps.getSource2dest(), alldeps.getDest2source());
             return deps;
