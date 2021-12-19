@@ -18,10 +18,7 @@ import org.netbeans.modules.parsing.spi.indexing.support.IndexingSupport;
 import org.netbeans.modules.php.blade.editor.gsf.BladeLanguage;
 import org.netbeans.modules.php.blade.editor.parsing.BladeParserResult;
 import org.netbeans.modules.parsing.spi.indexing.Context;
-import org.netbeans.modules.php.editor.parser.ASTPHP5Parser;
-import org.netbeans.modules.php.editor.parser.ASTPHP5Scanner;
 import org.openide.filesystems.FileObject;
-import java_cup.runtime.*;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.spi.indexing.support.IndexDocument;
@@ -36,7 +33,9 @@ import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
 /**
- *
+ * look for CssModel and CssIndexer for more inspiration
+ * @link https://github.com/apache/netbeans/blob/c084119009d2e0f736f225d706bc1827af283501/ide/css.editor/src/org/netbeans/modules/css/indexing/CssIndexer.java
+ * 
  * @author bhaidu
  */
 public class BladeIndexer extends EmbeddingIndexer {
