@@ -1,4 +1,4 @@
- /*
+   /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
  * Copyright 2016 Oracle and/or its affiliates. All rights reserved.
@@ -252,13 +252,18 @@ CLOSE_BLADE_PHP = "@endphp";
     return BladeTokenId.WHITESPACE;
 }
 
-<ST_HTML>(([^<@{}]|"<"[^?%(script)<])+)|"<script"|"<?xml"|"<" {
+<ST_HTML>(([^<@{}]|"<"[^?%(script)<])+)|"<script"|"<" {
     return BladeTokenId.T_HTML;
 }
 
 <ST_HTML>"<script"{WHITESPACE}+"language"{WHITESPACE}*"="{WHITESPACE}*( "php"|"\"php\""|"\'php\'"){WHITESPACE}*">" {
     return BladeTokenId.T_HTML;
 }
+
+<ST_HTML>"<?xml" [^<]* "?>" {
+	return BladeTokenId.T_XML;
+}
+
 
 <ST_HTML> {OPEN_PHP} {
     pushState(ST_PHP);
